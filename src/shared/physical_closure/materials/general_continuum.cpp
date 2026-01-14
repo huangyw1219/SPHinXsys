@@ -76,6 +76,24 @@ Mat3d PlasticContinuum::ReturnMapping(Mat3d &stress_tensor)
     return stress_tensor;
 }
 //=================================================================================================//
+Mat3d HerschelBulkleyPapanastasiouContinuum::ConstitutiveRelation(Mat3d &velocity_gradient, Mat3d &stress_tensor)
+{
+    Mat3d strain_rate = 0.5 * (velocity_gradient + velocity_gradient.transpose());
+    Mat3d spin_rate = 0.5 * (velocity_gradient - velocity_gradient.transpose());
+    Mat3d deviatoric_strain_rate = strain_rate - (1.0 / stress_dimension_) * strain_rate.trace() * Mat3d::Identity();
+    Real shear_rate = sqrt(2.0 * (deviatoric_strain_rate.cwiseProduct(deviatoric_strain_rate.transpose())).sum());
+    Real effective_shear_rate = SMAX(SMIN(shear_rate, max_shear_rate_), min_shear_rate_);
+    Real regularized_yield = yield_stress_ * (1.0 - exp(-regularization_m_ * effective_shear_rate)) / effective_shear_rate;
+    Real viscosity = regularized_yield + consistency_index_ * pow(effective_shear_rate, flow_index_ - 1.0);
+    Mat3d stress_rate_viscous = 2.0 * viscosity * deviatoric_strain_rate + K_ * strain_rate.trace() * Mat3d::Identity();
+    return stress_rate_viscous + stress_tensor * (spin_rate.transpose()) + spin_rate * stress_tensor;
+}
+//=================================================================================================//
+Mat3d HerschelBulkleyPapanastasiouContinuum::ReturnMapping(Mat3d &stress_tensor)
+{
+    return stress_tensor;
+}
+//=================================================================================================//
 Matd J2Plasticity::ConstitutiveRelationShearStressWithHardening(Matd &velocity_gradient, Matd &shear_stress, Real &hardening_factor)
 {
     Matd strain_rate = 0.5 * (velocity_gradient + velocity_gradient.transpose());

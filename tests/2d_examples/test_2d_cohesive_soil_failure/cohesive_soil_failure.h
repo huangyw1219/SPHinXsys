@@ -27,6 +27,11 @@ Real poisson = 0.3;                                                       // Poi
 Real c_s = sqrt(Youngs_modulus / (rho0_s * 3.0 * (1.0 - 2.0 * poisson))); // sound speed
 Real cohesion = 5.0e3;
 Real friction_angle = 25.0 * Pi / 180;
+// Mudflow-like Herschel-Bulkley-Papanastasiou parameters.
+Real hbp_yield_stress = 150.0;    // Pa
+Real hbp_consistency = 50.0;      // Pa·s^n
+Real hbp_flow_index = 0.35;       // n < 1 for shear-thinning
+Real hbp_regularization = 50.0;   // 1/s
 //----------------------------------------------------------------------
 //	Geometric shapes used in this case.
 //----------------------------------------------------------------------

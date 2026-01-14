@@ -139,6 +139,40 @@ class PlasticContinuum : public GeneralContinuum
     };
 };
 
+class HerschelBulkleyPapanastasiouContinuum : public PlasticContinuum
+{
+  protected:
+    Real yield_stress_;
+    Real consistency_index_;
+    Real flow_index_;
+    Real regularization_m_;
+    Real min_shear_rate_;
+    Real max_shear_rate_;
+
+  public:
+    explicit HerschelBulkleyPapanastasiouContinuum(Real rho0, Real c0, Real youngs_modulus, Real poisson_ratio,
+                                                   Real yield_stress, Real consistency_index, Real flow_index,
+                                                   Real regularization_m, Real min_shear_rate = 1.0e-6,
+                                                   Real max_shear_rate = 1.0e6)
+        : PlasticContinuum(rho0, c0, youngs_modulus, poisson_ratio, 0.0, 0.0, 0.0),
+          yield_stress_(yield_stress), consistency_index_(consistency_index), flow_index_(flow_index),
+          regularization_m_(regularization_m), min_shear_rate_(min_shear_rate), max_shear_rate_(max_shear_rate)
+    {
+        material_type_name_ = "HerschelBulkleyPapanastasiouContinuum";
+    };
+    virtual ~HerschelBulkleyPapanastasiouContinuum() {};
+
+    Real YieldStress() { return yield_stress_; };
+    Real ConsistencyIndex() { return consistency_index_; };
+    Real FlowIndex() { return flow_index_; };
+    Real RegularizationM() { return regularization_m_; };
+    Real MinShearRate() { return min_shear_rate_; };
+    Real MaxShearRate() { return max_shear_rate_; };
+
+    Mat3d ConstitutiveRelation(Mat3d &velocity_gradient, Mat3d &stress_tensor) override;
+    Mat3d ReturnMapping(Mat3d &stress_tensor) override;
+};
+
 class J2Plasticity : public GeneralContinuum
 {
   protected:

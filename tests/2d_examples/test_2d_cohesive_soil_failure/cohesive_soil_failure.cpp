@@ -18,7 +18,8 @@ int main(int ac, char *av[])
     //	Creating bodies with corresponding materials and particles.
     //----------------------------------------------------------------------
     RealBody soil_block(sph_system, makeShared<Soil>("GranularBody"));
-    soil_block.defineMaterial<PlasticContinuum>(rho0_s, c_s, Youngs_modulus, poisson, friction_angle, cohesion);
+    soil_block.defineMaterial<HerschelBulkleyPapanastasiouContinuum>(
+        rho0_s, c_s, Youngs_modulus, poisson, hbp_yield_stress, hbp_consistency, hbp_flow_index, hbp_regularization);
     soil_block.generateParticles<BaseParticles, Lattice>();
 
     SolidBody wall_boundary(sph_system, makeShared<WallBoundary>("WallBoundary"));
