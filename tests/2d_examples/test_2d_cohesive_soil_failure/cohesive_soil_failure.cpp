@@ -22,6 +22,10 @@ int main(int ac, char *av[])
                                               hbp_yield_stress, hbp_consistency, hbp_flow_index, hbp_regularization);
     soil_block.generateParticles<BaseParticles, Lattice>();
 
+    FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBody"));
+    water_block.defineClosure<WeaklyCompressibleFluid, Viscosity>(ConstructArgs(rho0_f, c_f), mu_f);
+    water_block.generateParticles<BaseParticles, Lattice>();
+
     SolidBody wall_boundary(sph_system, makeShared<WallBoundary>("WallBoundary"));
     wall_boundary.defineMaterial<Solid>();
     wall_boundary.generateParticles<BaseParticles, Lattice>();
@@ -32,17 +36,23 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     InnerRelation soil_block_inner(soil_block);
     ContactRelation soil_block_contact(soil_block, {&wall_boundary});
+    ContactRelation soil_water_contact(soil_block, {&water_block});
+    InnerRelation water_block_inner(water_block);
+    ContactRelation water_block_contact(water_block, {&wall_boundary});
+    ContactRelation water_soil_contact(water_block, {&soil_block});
     //----------------------------------------------------------------------
     // Combined relations built from basic relations
     // which is only used for update configuration.
     //----------------------------------------------------------------------
     ComplexRelation soil_block_complex(soil_block_inner, soil_block_contact);
+    ComplexRelation water_block_complex(water_block_inner, water_block_contact);
     //----------------------------------------------------------------------
     //	Define the main numerical methods used in the simulation.
     //	Note that there may be data dependence on the constructors of these methods.
     //----------------------------------------------------------------------
     Gravity gravity(Vecd(0.0, -gravity_g));
     SimpleDynamics<GravityForce<Gravity>> constant_gravity(soil_block, gravity);
+    SimpleDynamics<GravityForce<Gravity>> water_gravity(water_block, gravity);
     SimpleDynamics<NormalDirectionFromBodyShape> wall_boundary_normal_direction(wall_boundary);
     SimpleDynamics<SoilInitialCondition> soil_initial_condition(soil_block);
     InteractionWithUpdate<LinearGradientCorrectionMatrixComplex> correction_matrix(soil_block_inner, soil_block_contact);
@@ -52,9 +62,17 @@ int main(int ac, char *av[])
     InteractionDynamics<continuum_dynamics::StressDiffusion> stress_diffusion(soil_block_inner);
     InteractionWithUpdate<FreeSurfaceIndicationComplex> surface_indicator(soil_block_inner, soil_block_contact);
     SimpleDynamics<ErosionStateByShearRate> erosion_state_update(soil_block_inner);
+    InteractionWithUpdate<SoilForceFromWater> soil_force_from_water(soil_water_contact);
     InteractionWithUpdate<TransportVelocityCorrectionComplex<AllParticles>> transport_velocity_correction(soil_block_inner, soil_block_contact);
     InteractionWithUpdate<FreeSurfaceNormalComplex> free_surface_normal(soil_block_inner, soil_block_contact);
     ReduceDynamics<fluid_dynamics::AcousticTimeStep> soil_acoustic_time_step(soil_block, 0.4);
+    Dynamics1Level<fluid_dynamics::Integration1stHalfWithWallRiemann> water_pressure_relaxation(water_block_inner, water_block_contact);
+    Dynamics1Level<fluid_dynamics::Integration2ndHalfWithWallRiemann> water_density_relaxation(water_block_inner, water_block_contact);
+    InteractionWithUpdate<fluid_dynamics::DensitySummationComplexFreeSurface> water_density_by_summation(water_block_inner, water_block_contact);
+    InteractionWithUpdate<fluid_dynamics::ViscousForceWithWall> water_viscous_force(water_block_inner, water_block_contact);
+    InteractionWithUpdate<WaterForceFromSoil> water_force_from_soil(water_soil_contact);
+    ReduceDynamics<fluid_dynamics::AdvectionViscousTimeStep> water_advection_time_step(water_block, U_f, 0.1);
+    ReduceDynamics<fluid_dynamics::AcousticTimeStep> water_acoustic_time_step(water_block);
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations, observations
     //	and regression tests of the simulation.
@@ -62,6 +80,8 @@ int main(int ac, char *av[])
     BodyStatesRecordingToVtp body_states_recording(sph_system);
     body_states_recording.addToWrite<Real>(soil_block, "Pressure");
     body_states_recording.addToWrite<Real>(soil_block, "Density");
+    body_states_recording.addToWrite<Real>(water_block, "Pressure");
+    body_states_recording.addToWrite<Real>(water_block, "Density");
     SimpleDynamics<continuum_dynamics::VerticalStress> vertical_stress(soil_block);
     body_states_recording.addToWrite<Real>(soil_block, "VerticalStress");
     SimpleDynamics<continuum_dynamics::AccDeviatoricPlasticStrain> accumulated_deviatoric_plastic_strain(soil_block);
@@ -78,8 +98,11 @@ int main(int ac, char *av[])
     sph_system.initializeSystemConfigurations();
     wall_boundary_normal_direction.exec();
     constant_gravity.exec();
+    water_gravity.exec();
     soil_initial_condition.exec();
     correction_matrix.exec();
+    soil_water_contact.updateConfiguration();
+    water_soil_contact.updateConfiguration();
     //----------------------------------------------------------------------
     //	Setup for time-stepping control
     //----------------------------------------------------------------------
@@ -88,8 +111,8 @@ int main(int ac, char *av[])
     int screen_output_interval = 500;
     int observation_sample_interval = screen_output_interval * 2;
     int restart_output_interval = screen_output_interval * 10;
-    Real End_Time = 2.0;         /**< End time. */
-    Real D_Time = End_Time / 50; /**< Time stamps for output of body states. */
+    Real End_Time = 1.0;         /**< 计算时间 (s)，对齐论文 1s 的侵蚀过程。 */
+    Real D_Time = End_Time / 50; /**< 输出时间间隔。 */
     //----------------------------------------------------------------------
     //	Statistics for CPU time
     //----------------------------------------------------------------------
@@ -120,11 +143,20 @@ int main(int ac, char *av[])
             surface_indicator.exec();
             free_surface_normal.exec();
             transport_velocity_correction.exec();
-            Real dt = soil_acoustic_time_step.exec();
+            soil_force_from_water.exec();
+            water_force_from_soil.exec();
+            Real dt_s = soil_acoustic_time_step.exec();
+            Real Dt_f = water_advection_time_step.exec();
+            Real dt_f = water_acoustic_time_step.exec();
+            Real dt = SMIN(dt_s, SMIN(Dt_f, dt_f));
             stress_diffusion.exec();
             granular_stress_relaxation.exec(dt);
             granular_density_relaxation.exec(dt);
             erosion_state_update.exec();
+            water_density_by_summation.exec();
+            water_viscous_force.exec();
+            water_pressure_relaxation.exec(dt);
+            water_density_relaxation.exec(dt);
             integration_time += dt;
             physical_time += dt;
 
@@ -149,6 +181,10 @@ int main(int ac, char *av[])
             /** Update cell linked list and configuration. */
             soil_block.updateCellLinkedList();
             soil_block_complex.updateConfiguration();
+            water_block.updateCellLinkedList();
+            water_block_complex.updateConfiguration();
+            soil_water_contact.updateConfiguration();
+            water_soil_contact.updateConfiguration();
             correction_matrix.exec();
             interval_updating_configuration += TickCount::now() - time_instance;
         }
