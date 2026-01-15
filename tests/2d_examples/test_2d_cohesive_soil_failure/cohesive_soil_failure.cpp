@@ -27,6 +27,8 @@ int main(int ac, char *av[])
     water_block.generateParticles<BaseParticles, Lattice>();
     water_block.getBaseParticles().registerStateVariableData<Vecd>("Velocity");
     water_block.getBaseParticles().addEvolvingVariable<Vecd>("Velocity");
+    water_block.getBaseParticles().registerStateVariableData<Real>("Pressure");
+    water_block.getBaseParticles().addEvolvingVariable<Real>("Pressure");
 
     SolidBody wall_boundary(sph_system, makeShared<WallBoundary>("WallBoundary"));
     wall_boundary.defineMaterial<Solid>();
