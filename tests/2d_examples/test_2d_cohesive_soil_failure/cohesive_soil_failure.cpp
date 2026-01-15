@@ -18,7 +18,8 @@ int main(int ac, char *av[])
     //	Creating bodies with corresponding materials and particles.
     //----------------------------------------------------------------------
     RealBody soil_block(sph_system, makeShared<Soil>("GranularBody"));
-    soil_block.defineMaterial<PlasticContinuum>(rho0_s, c_s, Youngs_modulus, poisson, friction_angle, cohesion);
+    soil_block.defineMaterial<DpHbpContinuum>(rho0_s, c_s, Youngs_modulus, poisson, friction_angle, cohesion,
+                                              hbp_yield_stress, hbp_consistency, hbp_flow_index, hbp_regularization);
     soil_block.generateParticles<BaseParticles, Lattice>();
 
     SolidBody wall_boundary(sph_system, makeShared<WallBoundary>("WallBoundary"));
@@ -46,10 +47,11 @@ int main(int ac, char *av[])
     SimpleDynamics<SoilInitialCondition> soil_initial_condition(soil_block);
     InteractionWithUpdate<LinearGradientCorrectionMatrixComplex> correction_matrix(soil_block_inner, soil_block_contact);
     Dynamics1Level<continuum_dynamics::PlasticIntegration1stHalfWithWallRiemann> granular_stress_relaxation(soil_block_inner, soil_block_contact);
-    Dynamics1Level<continuum_dynamics::PlasticIntegration2ndHalfWithWallRiemann> granular_density_relaxation(soil_block_inner, soil_block_contact);
+    Dynamics1Level<continuum_dynamics::PlasticIntegration2ndHalfSwitchableWithWallRiemann> granular_density_relaxation(soil_block_inner, soil_block_contact);
     InteractionWithUpdate<fluid_dynamics::DensitySummationComplexFreeSurface> soil_density_by_summation(soil_block_inner, soil_block_contact);
     InteractionDynamics<continuum_dynamics::StressDiffusion> stress_diffusion(soil_block_inner);
     InteractionWithUpdate<FreeSurfaceIndicationComplex> surface_indicator(soil_block_inner, soil_block_contact);
+    SimpleDynamics<ErosionStateByShearRate> erosion_state_update(soil_block_inner);
     InteractionWithUpdate<TransportVelocityCorrectionComplex<AllParticles>> transport_velocity_correction(soil_block_inner, soil_block_contact);
     InteractionWithUpdate<FreeSurfaceNormalComplex> free_surface_normal(soil_block_inner, soil_block_contact);
     ReduceDynamics<fluid_dynamics::AcousticTimeStep> soil_acoustic_time_step(soil_block, 0.4);
@@ -122,6 +124,7 @@ int main(int ac, char *av[])
             stress_diffusion.exec();
             granular_stress_relaxation.exec(dt);
             granular_density_relaxation.exec(dt);
+            erosion_state_update.exec();
             integration_time += dt;
             physical_time += dt;
 

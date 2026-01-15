@@ -27,6 +27,13 @@ Real poisson = 0.3;                                                       // Poi
 Real c_s = sqrt(Youngs_modulus / (rho0_s * 3.0 * (1.0 - 2.0 * poisson))); // sound speed
 Real cohesion = 5.0e3;
 Real friction_angle = 25.0 * Pi / 180;
+// Mudflow-like Herschel-Bulkley-Papanastasiou parameters.
+Real hbp_yield_stress = 150.0;    // Pa
+Real hbp_consistency = 50.0;      // Pa·s^n
+Real hbp_flow_index = 0.35;       // n < 1 for shear-thinning
+Real hbp_regularization = 50.0;   // 1/s
+Real erosion_shear_rate = 2.0;    // 1/s
+Real deposition_shear_rate = 0.5; // 1/s
 //----------------------------------------------------------------------
 //	Geometric shapes used in this case.
 //----------------------------------------------------------------------
@@ -79,6 +86,38 @@ class SoilInitialCondition : public continuum_dynamics::ContinuumInitialConditio
         stress_tensor_3D_[index_i](0, 0) = stress_yy * gama;
         stress_tensor_3D_[index_i](2, 2) = stress_yy * gama;
     };
+};
+//----------------------------------------------------------------------
+//	Erosion state update for DP/HBP switching
+//----------------------------------------------------------------------
+class ErosionStateByShearRate : public LocalDynamics, public DataDelegateInner
+{
+  public:
+    explicit ErosionStateByShearRate(BaseInnerRelation &inner_relation)
+        : LocalDynamics(inner_relation.getSPHBody()), DataDelegateInner(inner_relation),
+          velocity_gradient_(particles_->getVariableDataByName<Matd>("VelocityGradient")),
+          indicator_(particles_->getVariableDataByName<int>("Indicator")),
+          erosion_state_(particles_->getVariableDataByName<int>("ErosionState")) {}
+
+    void update(size_t index_i, Real dt)
+    {
+        Mat3d velocity_gradient = upgradeToMat3d(velocity_gradient_[index_i]);
+        Mat3d strain_rate = 0.5 * (velocity_gradient + velocity_gradient.transpose());
+        Mat3d deviatoric_strain_rate = strain_rate - (1.0 / 3.0) * strain_rate.trace() * Mat3d::Identity();
+        Real shear_rate = sqrt(2.0 * (deviatoric_strain_rate.cwiseProduct(deviatoric_strain_rate.transpose())).sum());
+        if (indicator_[index_i] && shear_rate >= erosion_shear_rate)
+        {
+            erosion_state_[index_i] = 1;
+        }
+        else if (shear_rate <= deposition_shear_rate)
+        {
+            erosion_state_[index_i] = 0;
+        }
+    }
+
+  protected:
+    Matd *velocity_gradient_;
+    int *indicator_, *erosion_state_;
 };
 //----------------------------------------------------------------------
 //	Unified transport velocity correction
