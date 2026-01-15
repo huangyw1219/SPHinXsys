@@ -62,7 +62,7 @@ int main(int ac, char *av[])
     InteractionDynamics<continuum_dynamics::StressDiffusion> stress_diffusion(soil_block_inner);
     InteractionWithUpdate<FreeSurfaceIndicationComplex> surface_indicator(soil_block_inner, soil_block_contact);
     SimpleDynamics<ErosionStateByShearRate> erosion_state_update(soil_block_inner);
-    InteractionWithUpdate<SoilForceFromWater> soil_force_from_water(soil_water_contact);
+    SimpleDynamics<SoilForceFromWater> soil_force_from_water(soil_water_contact);
     InteractionWithUpdate<TransportVelocityCorrectionComplex<AllParticles>> transport_velocity_correction(soil_block_inner, soil_block_contact);
     InteractionWithUpdate<FreeSurfaceNormalComplex> free_surface_normal(soil_block_inner, soil_block_contact);
     ReduceDynamics<fluid_dynamics::AcousticTimeStep> soil_acoustic_time_step(soil_block, 0.4);
@@ -70,7 +70,7 @@ int main(int ac, char *av[])
     Dynamics1Level<fluid_dynamics::Integration2ndHalfWithWallRiemann> water_density_relaxation(water_block_inner, water_block_contact);
     InteractionWithUpdate<fluid_dynamics::DensitySummationComplexFreeSurface> water_density_by_summation(water_block_inner, water_block_contact);
     InteractionWithUpdate<fluid_dynamics::ViscousForceWithWall> water_viscous_force(water_block_inner, water_block_contact);
-    InteractionWithUpdate<WaterForceFromSoil> water_force_from_soil(water_soil_contact);
+    SimpleDynamics<WaterForceFromSoil> water_force_from_soil(water_soil_contact);
     ReduceDynamics<fluid_dynamics::AdvectionViscousTimeStep> water_advection_time_step(water_block, U_f, 0.1);
     ReduceDynamics<fluid_dynamics::AcousticTimeStep> water_acoustic_time_step(water_block);
     //----------------------------------------------------------------------
