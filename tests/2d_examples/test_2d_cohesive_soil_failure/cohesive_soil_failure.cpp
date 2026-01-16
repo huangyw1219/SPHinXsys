@@ -21,7 +21,9 @@ int main(int ac, char *av[])
     soil_block.defineMaterial<DpHbpContinuum>(rho0_s, c_s, Youngs_modulus, poisson, friction_angle, cohesion,
                                               hbp_yield_stress, hbp_consistency, hbp_flow_index, hbp_regularization);
     soil_block.generateParticles<BaseParticles, Lattice>();
-    soil_block.getBaseParticles().registerStateVariableData<int>("ErosionState");
+    int *soil_erosion_state = soil_block.getBaseParticles().registerStateVariableData<int>("ErosionState");
+    for (UnsignedInt i = 0; i < soil_block.getBaseParticles().TotalRealParticles(); ++i)
+        soil_erosion_state[i] = 0;
 
     FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBody"));
     water_block.defineClosure<WeaklyCompressibleFluid, Viscosity>(ConstructArgs(rho0_f, c_f), mu_f);
@@ -30,7 +32,9 @@ int main(int ac, char *av[])
     water_block.getBaseParticles().addEvolvingVariable<Vecd>("Velocity");
     water_block.getBaseParticles().registerStateVariableData<Real>("Pressure");
     water_block.getBaseParticles().addEvolvingVariable<Real>("Pressure");
-    water_block.getBaseParticles().registerStateVariableData<int>("ErosionState");
+    int *water_erosion_state = water_block.getBaseParticles().registerStateVariableData<int>("ErosionState");
+    for (UnsignedInt i = 0; i < water_block.getBaseParticles().TotalRealParticles(); ++i)
+        water_erosion_state[i] = 0;
 
     SolidBody wall_boundary(sph_system, makeShared<WallBoundary>("WallBoundary"));
     wall_boundary.defineMaterial<Solid>();
