@@ -256,6 +256,7 @@ class WaterForceFromSoil : public ForcePrior, public DataDelegateContact
     StdVec<Vecd *> contact_vel_;
     StdVec<Real *> contact_p_;
     StdVec<Real *> contact_Vol_;
+    StdVec<int *> contact_erosion_state_;
     StdVec<Real> smoothing_length_;
 };
 //----------------------------------------------------------------------
