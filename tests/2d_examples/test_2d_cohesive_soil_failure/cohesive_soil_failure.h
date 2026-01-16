@@ -237,6 +237,62 @@ class WaterForceFromSoil : public ForcePrior, public DataDelegateContact
     StdVec<Real> smoothing_length_;
 };
 //----------------------------------------------------------------------
+//	水体-未侵蚀土体的动态壁面处理（近似 Contact<Wall>）
+//	仅当土体粒子为未侵蚀状态（ErosionState==0）时施加边界压力贡献
+//----------------------------------------------------------------------
+class WaterWallBoundaryFromSoil : public LocalDynamics, public DataDelegateContact
+{
+  public:
+    explicit WaterWallBoundaryFromSoil(BaseContactRelation &contact_relation)
+        : LocalDynamics(contact_relation.getSPHBody()), DataDelegateContact(contact_relation),
+          rho_(particles_->getVariableDataByName<Real>("Density")),
+          p_(particles_->getVariableDataByName<Real>("Pressure")),
+          mass_(particles_->getVariableDataByName<Real>("Mass")),
+          force_(particles_->getVariableDataByName<Vecd>("Force")),
+          force_prior_(particles_->getVariableDataByName<Vecd>("ForcePrior")),
+          drho_dt_(particles_->getVariableDataByName<Real>("DensityChangeRate"))
+    {
+        for (size_t k = 0; k != contact_particles_.size(); ++k)
+        {
+            wall_Vol_.push_back(contact_particles_[k]->getVariableDataByName<Real>("VolumetricMeasure"));
+            wall_erosion_state_.push_back(contact_particles_[k]->getVariableDataByName<int>("ErosionState"));
+        }
+    }
+
+    void interaction(size_t index_i, Real dt = 0.0)
+    {
+        Vecd force = Vecd::Zero();
+        Real rho_dissipation(0);
+        for (size_t k = 0; k < contact_configuration_.size(); ++k)
+        {
+            Real *wall_Vol_k = wall_Vol_[k];
+            int *wall_erosion_state_k = wall_erosion_state_[k];
+            Neighborhood &wall_neighborhood = (*contact_configuration_[k])[index_i];
+            for (size_t n = 0; n != wall_neighborhood.current_size_; ++n)
+            {
+                size_t index_j = wall_neighborhood.j_[n];
+                if (wall_erosion_state_k[index_j] != 0)
+                    continue;
+                Vecd &e_ij = wall_neighborhood.e_ij_[n];
+                Real dW_ijV_j = wall_neighborhood.dW_ij_[n] * wall_Vol_k[index_j];
+                Real r_ij = wall_neighborhood.r_ij_[n];
+                Real face_wall_external_acceleration = (force_prior_[index_i] / mass_[index_i]).dot(-e_ij);
+                Real p_j_in_wall = p_[index_i] + rho_[index_i] * r_ij * SMAX(Real(0), face_wall_external_acceleration);
+                force -= (p_[index_i] + p_j_in_wall) * dW_ijV_j * e_ij;
+                rho_dissipation += 0.0;
+            }
+        }
+        force_[index_i] += force * particles_->getVariableDataByName<Real>("VolumetricMeasure")[index_i];
+        drho_dt_[index_i] += rho_dissipation * rho_[index_i];
+    }
+
+  protected:
+    Real *rho_, *p_, *mass_, *drho_dt_;
+    Vecd *force_, *force_prior_;
+    StdVec<Real *> wall_Vol_;
+    StdVec<int *> wall_erosion_state_;
+};
+//----------------------------------------------------------------------
 //	侵蚀判据与沉积判据（对应论文 4.4.2 / 4.4.3）
 //	交界面判定：2h 支持域内是否存在水粒子
 //	流速估计：v_i = sum(v_j W_ij V_j) / sum(W_ij V_j)

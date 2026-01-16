@@ -75,6 +75,7 @@ int main(int ac, char *av[])
     InteractionWithUpdate<fluid_dynamics::DensitySummationComplexFreeSurface> water_density_by_summation(water_block_inner, water_block_contact);
     InteractionWithUpdate<fluid_dynamics::ViscousForceWithWall> water_viscous_force(water_block_inner, water_block_contact);
     SimpleDynamics<WaterForceFromSoil> water_force_from_soil(water_soil_contact);
+    InteractionDynamics<WaterWallBoundaryFromSoil> water_wall_boundary_from_soil(water_soil_contact);
     ReduceDynamics<fluid_dynamics::AdvectionViscousTimeStep> water_advection_time_step(water_block, U_f, 0.1);
     ReduceDynamics<fluid_dynamics::AcousticTimeStep> water_acoustic_time_step(water_block);
     //----------------------------------------------------------------------
@@ -162,6 +163,7 @@ int main(int ac, char *av[])
             water_density_by_summation.exec();
             water_viscous_force.exec();
             water_pressure_relaxation.exec(dt);
+            water_wall_boundary_from_soil.exec();
             water_density_relaxation.exec(dt);
             integration_time += dt;
             physical_time += dt;
