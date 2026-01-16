@@ -48,7 +48,8 @@ Real rho0_f = 1000.0;                                     // 水密度 rho_w (kg
 Real mu_f = 0.001;                                        // 动力黏度 μ (Pa·s)
 Real c_f = 10.0 * sqrt(gravity_g * (Hw + Hs));            // 人工声速，保证弱可压缩条件
 Real U_f = 1.0;                                           // 参考速度，用于时间步估计
-Real soil_contact_stiffness = 10.0 * c_f * c_f;           // 水-土界面惩罚刚度（防穿透）
+Real soil_contact_stiffness = 50.0 * c_f * c_f;           // 水-土界面惩罚刚度（防穿透）
+Real water_soil_force_scale = 2.0;                        // 水-土力耦合放大系数（增强冲击）
 //----------------------------------------------------------------------
 //	Geometric shapes used in this case.
 //----------------------------------------------------------------------
@@ -155,7 +156,7 @@ class SoilForceFromWater : public ForcePrior, public DataDelegateContact
                 force += 2.0 * mu_f * vel_derivative * contact_neighborhood.dW_ij_[n] * Vol_k[index_j];
             }
         }
-        current_force_[index_i] = force * Vol_[index_i];
+        current_force_[index_i] = water_soil_force_scale * force * Vol_[index_i];
         ForcePrior::update(index_i, dt);
     }
 
@@ -213,7 +214,7 @@ class WaterForceFromSoil : public ForcePrior, public DataDelegateContact
                 }
             }
         }
-        current_force_[index_i] = force * Vol_[index_i];
+        current_force_[index_i] = water_soil_force_scale * force * Vol_[index_i];
         ForcePrior::update(index_i, dt);
     }
 
