@@ -42,9 +42,11 @@ int main(int ac, char *av[])
     InnerRelation soil_block_inner(soil_block);
     ContactRelation soil_block_contact(soil_block, {&wall_boundary});
     ContactRelation soil_water_contact(soil_block, {&water_block});
+    NonErodedSoilPart non_eroded_soil(soil_block);
     InnerRelation water_block_inner(water_block);
     ContactRelation water_block_contact(water_block, {&wall_boundary});
     ContactRelation water_soil_contact(water_block, {&soil_block});
+    ContactRelation water_soil_wall_contact(water_block, {&non_eroded_soil});
     //----------------------------------------------------------------------
     // Combined relations built from basic relations
     // which is only used for update configuration.
@@ -76,7 +78,7 @@ int main(int ac, char *av[])
     InteractionWithUpdate<fluid_dynamics::DensitySummationComplexFreeSurface> water_density_by_summation(water_block_inner, water_block_contact);
     InteractionWithUpdate<fluid_dynamics::ViscousForceWithWall> water_viscous_force(water_block_inner, water_block_contact);
     SimpleDynamics<WaterForceFromSoil> water_force_from_soil(water_soil_contact);
-    InteractionDynamics<WaterWallBoundaryFromSoil> water_wall_boundary_from_soil(water_soil_contact);
+    InteractionDynamics<WaterWallBoundaryFromSoil> water_wall_boundary_from_soil(water_soil_wall_contact);
     ReduceDynamics<fluid_dynamics::AdvectionViscousTimeStep> water_advection_time_step(water_block, U_f, 0.1);
     ReduceDynamics<fluid_dynamics::AcousticTimeStep> water_acoustic_time_step(water_block);
     //----------------------------------------------------------------------
@@ -161,6 +163,7 @@ int main(int ac, char *av[])
             granular_stress_relaxation.exec(dt);
             granular_density_relaxation.exec(dt);
             erosion_state_update.exec();
+            non_eroded_soil.updateTags();
             water_density_by_summation.exec();
             water_viscous_force.exec();
             water_pressure_relaxation.exec(dt);

@@ -48,7 +48,6 @@ Real rho0_f = 1000.0;                                     // 水密度 rho_w (kg
 Real mu_f = 0.001;                                        // 动力黏度 μ (Pa·s)
 Real c_f = 10.0 * sqrt(gravity_g * (Hw + Hs));            // 人工声速，保证弱可压缩条件
 Real U_f = 1.0;                                           // 参考速度，用于时间步估计
-Real soil_contact_stiffness = 10.0 * c_f * c_f;           // 水-土界面惩罚刚度（防穿透）
 Real water_soil_force_scale = 1.0;                        // 水-土力耦合系数
 Real erosion_drag_coeff = 5.0 * rho0_f;                   // 侵蚀粒子随流拖曳系数
 //----------------------------------------------------------------------
@@ -95,6 +94,36 @@ class WaterBlock : public MultiPolygonShape
     }
 };
 //----------------------------------------------------------------------
+//	未侵蚀土体粒子集合：作为水体动态壁面
+//----------------------------------------------------------------------
+class NonErodedSoilPart : public BodyPartByParticle
+{
+  public:
+    explicit NonErodedSoilPart(RealBody &soil_body)
+        : BodyPartByParticle(soil_body),
+          erosion_state_(soil_body.getBaseParticles().getVariableDataByName<int>("ErosionState"))
+    {
+        TaggingParticleMethod tagging_particle_method =
+            std::bind(&NonErodedSoilPart::tagByErosionState, this, std::placeholders::_1);
+        tagParticles(tagging_particle_method);
+    }
+
+    bool tagByErosionState(size_t particle_index)
+    {
+        return erosion_state_[particle_index] == 0;
+    }
+
+    void updateTags()
+    {
+        TaggingParticleMethod tagging_particle_method =
+            std::bind(&NonErodedSoilPart::tagByErosionState, this, std::placeholders::_1);
+        tagParticles(tagging_particle_method);
+    }
+
+  protected:
+    int *erosion_state_;
+};
+//----------------------------------------------------------------------
 //	application dependent initial condition
 //----------------------------------------------------------------------
 class SoilInitialCondition : public continuum_dynamics::ContinuumInitialCondition
@@ -133,7 +162,6 @@ class SoilForceFromWater : public ForcePrior, public DataDelegateContact
             contact_vel_.push_back(contact_particles_[k]->getVariableDataByName<Vecd>("Velocity"));
             contact_p_.push_back(contact_particles_[k]->getVariableDataByName<Real>("Pressure"));
             contact_Vol_.push_back(contact_particles_[k]->getVariableDataByName<Real>("VolumetricMeasure"));
-            contact_erosion_state_.push_back(contact_particles_[k]->getVariableDataByName<int>("ErosionState"));
             smoothing_length_.push_back(contact_bodies_[k]->getSPHAdaptation().ReferenceSmoothingLength());
         }
     }
@@ -146,7 +174,6 @@ class SoilForceFromWater : public ForcePrior, public DataDelegateContact
             Vecd *vel_k = contact_vel_[k];
             Real *p_k = contact_p_[k];
             Real *Vol_k = contact_Vol_[k];
-            int *erosion_state_k = contact_erosion_state_[k];
             Real smoothing_length_k = smoothing_length_[k];
             Neighborhood &contact_neighborhood = (*contact_configuration_[k])[index_i];
             for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
@@ -215,12 +242,6 @@ class WaterForceFromSoil : public ForcePrior, public DataDelegateContact
                 force -= p_k[index_j] * gradW * Vol_k[index_j];
                 Vecd vel_derivative = 2.0 * (vel_k[index_j] - vel_[index_i]) / (r_ij + 0.01 * smoothing_length_k);
                 force += 2.0 * mu_f * vel_derivative * contact_neighborhood.dW_ij_[n] * Vol_k[index_j];
-                if (erosion_state_k[index_j] == 0)
-                {
-                    Real penetration = 1.0 - r_ij / (smoothing_length_k + TinyReal);
-                    Real penalty = soil_contact_stiffness * SMAX(penetration, 0.0);
-                    force -= penalty * gradW * Vol_k[index_j];
-                }
             }
         }
         current_force_[index_i] = water_soil_force_scale * force * Vol_[index_i];
@@ -233,7 +254,6 @@ class WaterForceFromSoil : public ForcePrior, public DataDelegateContact
     StdVec<Vecd *> contact_vel_;
     StdVec<Real *> contact_p_;
     StdVec<Real *> contact_Vol_;
-    StdVec<int *> contact_erosion_state_;
     StdVec<Real> smoothing_length_;
 };
 //----------------------------------------------------------------------
@@ -266,13 +286,10 @@ class WaterWallBoundaryFromSoil : public LocalDynamics, public DataDelegateConta
         for (size_t k = 0; k < contact_configuration_.size(); ++k)
         {
             Real *wall_Vol_k = wall_Vol_[k];
-            int *wall_erosion_state_k = wall_erosion_state_[k];
             Neighborhood &wall_neighborhood = (*contact_configuration_[k])[index_i];
             for (size_t n = 0; n != wall_neighborhood.current_size_; ++n)
             {
                 size_t index_j = wall_neighborhood.j_[n];
-                if (wall_erosion_state_k[index_j] != 0)
-                    continue;
                 Vecd &e_ij = wall_neighborhood.e_ij_[n];
                 Real dW_ijV_j = wall_neighborhood.dW_ij_[n] * wall_Vol_k[index_j];
                 Real r_ij = wall_neighborhood.r_ij_[n];
@@ -290,7 +307,6 @@ class WaterWallBoundaryFromSoil : public LocalDynamics, public DataDelegateConta
     Real *rho_, *p_, *mass_, *drho_dt_;
     Vecd *force_, *force_prior_;
     StdVec<Real *> wall_Vol_;
-    StdVec<int *> wall_erosion_state_;
 };
 //----------------------------------------------------------------------
 //	侵蚀判据与沉积判据（对应论文 4.4.2 / 4.4.3）
