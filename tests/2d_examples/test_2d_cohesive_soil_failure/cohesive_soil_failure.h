@@ -48,8 +48,9 @@ Real rho0_f = 1000.0;                                     // 水密度 rho_w (kg
 Real mu_f = 0.001;                                        // 动力黏度 μ (Pa·s)
 Real c_f = 10.0 * sqrt(gravity_g * (Hw + Hs));            // 人工声速，保证弱可压缩条件
 Real U_f = 1.0;                                           // 参考速度，用于时间步估计
-Real soil_contact_stiffness = 50.0 * c_f * c_f;           // 水-土界面惩罚刚度（防穿透）
-Real water_soil_force_scale = 2.0;                        // 水-土力耦合放大系数（增强冲击）
+Real soil_contact_stiffness = 10.0 * c_f * c_f;           // 水-土界面惩罚刚度（防穿透）
+Real water_soil_force_scale = 1.0;                        // 水-土力耦合系数
+Real erosion_drag_coeff = 5.0 * rho0_f;                   // 侵蚀粒子随流拖曳系数
 //----------------------------------------------------------------------
 //	Geometric shapes used in this case.
 //----------------------------------------------------------------------
@@ -132,6 +133,7 @@ class SoilForceFromWater : public ForcePrior, public DataDelegateContact
             contact_vel_.push_back(contact_particles_[k]->getVariableDataByName<Vecd>("Velocity"));
             contact_p_.push_back(contact_particles_[k]->getVariableDataByName<Real>("Pressure"));
             contact_Vol_.push_back(contact_particles_[k]->getVariableDataByName<Real>("VolumetricMeasure"));
+            contact_erosion_state_.push_back(contact_particles_[k]->getVariableDataByName<int>("ErosionState"));
             smoothing_length_.push_back(contact_bodies_[k]->getSPHAdaptation().ReferenceSmoothingLength());
         }
     }
@@ -144,6 +146,7 @@ class SoilForceFromWater : public ForcePrior, public DataDelegateContact
             Vecd *vel_k = contact_vel_[k];
             Real *p_k = contact_p_[k];
             Real *Vol_k = contact_Vol_[k];
+            int *erosion_state_k = contact_erosion_state_[k];
             Real smoothing_length_k = smoothing_length_[k];
             Neighborhood &contact_neighborhood = (*contact_configuration_[k])[index_i];
             for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
@@ -154,6 +157,11 @@ class SoilForceFromWater : public ForcePrior, public DataDelegateContact
                 force -= p_k[index_j] * gradW * Vol_k[index_j];
                 Vecd vel_derivative = 2.0 * (vel_k[index_j] - vel_[index_i]) / (r_ij + 0.01 * smoothing_length_k);
                 force += 2.0 * mu_f * vel_derivative * contact_neighborhood.dW_ij_[n] * Vol_k[index_j];
+                if (erosion_state_k[index_j] == 1)
+                {
+                    force += erosion_drag_coeff * (vel_k[index_j] - vel_[index_i]) *
+                             contact_neighborhood.W_ij_[n] * Vol_k[index_j];
+                }
             }
         }
         current_force_[index_i] = water_soil_force_scale * force * Vol_[index_i];
@@ -166,6 +174,7 @@ class SoilForceFromWater : public ForcePrior, public DataDelegateContact
     StdVec<Vecd *> contact_vel_;
     StdVec<Real *> contact_p_;
     StdVec<Real *> contact_Vol_;
+    StdVec<int *> contact_erosion_state_;
     StdVec<Real> smoothing_length_;
 };
 
