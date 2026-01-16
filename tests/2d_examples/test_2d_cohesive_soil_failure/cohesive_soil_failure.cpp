@@ -46,7 +46,7 @@ int main(int ac, char *av[])
     InnerRelation water_block_inner(water_block);
     ContactRelation water_block_contact(water_block, {&wall_boundary});
     ContactRelation water_soil_contact(water_block, {&soil_block});
-    ContactRelation water_soil_wall_contact(water_block, {&non_eroded_soil});
+    ContactRelationToBodyPart water_soil_wall_contact(water_block, BodyPartVector{&non_eroded_soil});
     //----------------------------------------------------------------------
     // Combined relations built from basic relations
     // which is only used for update configuration.

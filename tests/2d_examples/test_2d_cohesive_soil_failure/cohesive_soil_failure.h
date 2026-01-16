@@ -162,6 +162,7 @@ class SoilForceFromWater : public ForcePrior, public DataDelegateContact
             contact_vel_.push_back(contact_particles_[k]->getVariableDataByName<Vecd>("Velocity"));
             contact_p_.push_back(contact_particles_[k]->getVariableDataByName<Real>("Pressure"));
             contact_Vol_.push_back(contact_particles_[k]->getVariableDataByName<Real>("VolumetricMeasure"));
+            contact_erosion_state_.push_back(contact_particles_[k]->getVariableDataByName<int>("ErosionState"));
             smoothing_length_.push_back(contact_bodies_[k]->getSPHAdaptation().ReferenceSmoothingLength());
         }
     }
@@ -174,6 +175,7 @@ class SoilForceFromWater : public ForcePrior, public DataDelegateContact
             Vecd *vel_k = contact_vel_[k];
             Real *p_k = contact_p_[k];
             Real *Vol_k = contact_Vol_[k];
+            int *erosion_state_k = contact_erosion_state_[k];
             Real smoothing_length_k = smoothing_length_[k];
             Neighborhood &contact_neighborhood = (*contact_configuration_[k])[index_i];
             for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
@@ -275,7 +277,6 @@ class WaterWallBoundaryFromSoil : public LocalDynamics, public DataDelegateConta
         for (size_t k = 0; k != contact_particles_.size(); ++k)
         {
             wall_Vol_.push_back(contact_particles_[k]->getVariableDataByName<Real>("VolumetricMeasure"));
-            wall_erosion_state_.push_back(contact_particles_[k]->getVariableDataByName<int>("ErosionState"));
         }
     }
 
