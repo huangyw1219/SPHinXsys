@@ -91,6 +91,8 @@ int main(int ac, char *av[])
     SimpleDynamics<continuum_dynamics::AccDeviatoricPlasticStrain> accumulated_deviatoric_plastic_strain(soil_block);
     body_states_recording.addToWrite<Real>(soil_block, "AccDeviatoricPlasticStrain");
     body_states_recording.addToWrite<int>(soil_block, "Indicator");
+    body_states_recording.addToWrite<int>(soil_block, "ErosionState");
+    body_states_recording.addToWrite<int>(soil_block, "InterfaceIndicator");
     RestartIO restart_io(sph_system);
     RegressionTestDynamicTimeWarping<ReducedQuantityRecording<TotalMechanicalEnergy>>
         write_mechanical_energy(soil_block, gravity);
