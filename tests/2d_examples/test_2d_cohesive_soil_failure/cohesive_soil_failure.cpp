@@ -21,6 +21,7 @@ int main(int ac, char *av[])
     soil_block.defineMaterial<DpHbpContinuum>(rho0_s, c_s, Youngs_modulus, poisson, friction_angle, cohesion,
                                               hbp_yield_stress, hbp_consistency, hbp_flow_index, hbp_regularization);
     soil_block.generateParticles<BaseParticles, Lattice>();
+    soil_block.getBaseParticles().registerStateVariableData<int>("ErosionState");
 
     FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBody"));
     water_block.defineClosure<WeaklyCompressibleFluid, Viscosity>(ConstructArgs(rho0_f, c_f), mu_f);
