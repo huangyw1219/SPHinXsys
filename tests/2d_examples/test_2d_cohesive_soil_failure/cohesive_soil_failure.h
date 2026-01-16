@@ -36,6 +36,8 @@ Real hbp_yield_stress = 0.0;  // 屈服应力 τ0 (Pa)，泥浆稀薄时可取 0
 Real hbp_consistency = 0.001; // 黏度系数 Vs (Pa·s^n)
 Real hbp_flow_index = 1.0;    // 幂律指数 n
 Real hbp_regularization = 0.0; // Papanastasiou 正则化参数 m (文献给出 0)
+Real d50 = 0.0035;             // 中值粒径 d50 (m)
+Real erosion_velocity_eps = 1.0e-4; // 沉积判据中的速度阈值 (m/s)
 // 侵蚀/淤积状态阈值（用于 DP/HBP 切换，需根据实验标定）
 Real erosion_shear_rate = 2.0;    // 侵蚀触发剪切率 (1/s)
 Real deposition_shear_rate = 0.5; // 回沉/淤积剪切率 (1/s)
@@ -215,36 +217,87 @@ class WaterForceFromSoil : public ForcePrior, public DataDelegateContact
     StdVec<Real> smoothing_length_;
 };
 //----------------------------------------------------------------------
-//	Erosion state update for DP/HBP switching
+//	侵蚀判据与沉积判据（对应论文 4.4.2 / 4.4.3）
+//	交界面判定：2h 支持域内是否存在水粒子
+//	流速估计：v_i = sum(v_j W_ij V_j) / sum(W_ij V_j)
+//	侵蚀判据：E = v_i - v_ic, 其中 v_ic 按 d50 分段（式 4.3/4.4）
+//	沉积判据：D > dp 且 E <= 0 且 v_is = 0（式 4.10-4.12）
 //----------------------------------------------------------------------
-class ErosionStateByShearRate : public LocalDynamics, public DataDelegateInner
+class ErosionStateByVelocity : public LocalDynamics, public DataDelegateContact
 {
   public:
-    explicit ErosionStateByShearRate(BaseInnerRelation &inner_relation)
-        : LocalDynamics(inner_relation.getSPHBody()), DataDelegateInner(inner_relation),
-          velocity_gradient_(particles_->getVariableDataByName<Matd>("VelocityGradient")),
-          indicator_(particles_->getVariableDataByName<int>("Indicator")),
-          erosion_state_(particles_->getVariableDataByName<int>("ErosionState")) {}
+    explicit ErosionStateByVelocity(BaseContactRelation &contact_relation)
+        : LocalDynamics(contact_relation.getSPHBody()), DataDelegateContact(contact_relation),
+          pos_(particles_->getVariableDataByName<Vecd>("Position")),
+          vel_(particles_->getVariableDataByName<Vecd>("Velocity")),
+          erosion_state_(particles_->getVariableDataByName<int>("ErosionState")),
+          erosion_start_pos_(particles_->registerStateVariableData<Vecd>("ErosionStartPosition")),
+          interface_indicator_(particles_->registerStateVariableData<int>("InterfaceIndicator"))
+    {
+        particles_->addEvolvingVariable<Vecd>("ErosionStartPosition");
+        particles_->addEvolvingVariable<int>("InterfaceIndicator");
+        for (size_t k = 0; k != contact_particles_.size(); ++k)
+        {
+            contact_vel_.push_back(contact_particles_[k]->getVariableDataByName<Vecd>("Velocity"));
+            contact_Vol_.push_back(contact_particles_[k]->getVariableDataByName<Real>("VolumetricMeasure"));
+        }
+    }
 
     void update(size_t index_i, Real dt)
     {
-        Mat3d velocity_gradient = upgradeToMat3d(velocity_gradient_[index_i]);
-        Mat3d strain_rate = 0.5 * (velocity_gradient + velocity_gradient.transpose());
-        Mat3d deviatoric_strain_rate = strain_rate - (1.0 / 3.0) * strain_rate.trace() * Mat3d::Identity();
-        Real shear_rate = sqrt(2.0 * (deviatoric_strain_rate.cwiseProduct(deviatoric_strain_rate.transpose())).sum());
-        if (indicator_[index_i] && shear_rate >= erosion_shear_rate)
+        Real weight_sum = 0.0;
+        Vecd velocity_sum = Vecd::Zero();
+        interface_indicator_[index_i] = 0;
+        for (size_t k = 0; k < contact_configuration_.size(); ++k)
         {
-            erosion_state_[index_i] = 1;
+            Vecd *vel_k = contact_vel_[k];
+            Real *Vol_k = contact_Vol_[k];
+            Neighborhood &contact_neighborhood = (*contact_configuration_[k])[index_i];
+            if (contact_neighborhood.current_size_ > 0)
+                interface_indicator_[index_i] = 1;
+            for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
+            {
+                size_t index_j = contact_neighborhood.j_[n];
+                Real W_ij = contact_neighborhood.W_ij_[n];
+                Real weight = W_ij * Vol_k[index_j];
+                weight_sum += weight;
+                velocity_sum += vel_k[index_j] * weight;
+            }
         }
-        else if (shear_rate <= deposition_shear_rate)
+
+        if (!interface_indicator_[index_i])
         {
             erosion_state_[index_i] = 0;
+            return;
+        }
+
+        Real v_i = (weight_sum > TinyReal) ? velocity_sum.norm() / weight_sum : 0.0;
+        Real d50_mm = d50 * 1000.0;
+        Real v_ic = (d50_mm < 0.1) ? 0.1 * pow(d50_mm, -0.2) : 0.35 * pow(d50_mm, 0.45);
+        Real E = v_i - v_ic;
+
+        if (E > 0.0)
+        {
+            if (erosion_state_[index_i] == 0)
+                erosion_start_pos_[index_i] = pos_[index_i];
+            erosion_state_[index_i] = 1;
+        }
+        else if (erosion_state_[index_i] == 1)
+        {
+            Real D = (pos_[index_i] - erosion_start_pos_[index_i]).norm();
+            if (D > particle_spacing_ref && vel_[index_i].norm() <= erosion_velocity_eps)
+            {
+                erosion_state_[index_i] = 0;
+            }
         }
     }
 
   protected:
-    Matd *velocity_gradient_;
-    int *indicator_, *erosion_state_;
+    Vecd *pos_, *vel_;
+    int *erosion_state_, *interface_indicator_;
+    Vecd *erosion_start_pos_;
+    StdVec<Vecd *> contact_vel_;
+    StdVec<Real *> contact_Vol_;
 };
 //----------------------------------------------------------------------
 //	Unified transport velocity correction
