@@ -162,6 +162,7 @@ class NonErodedSoilSurfacePart : public BodyPartByParticle
   public:
     explicit NonErodedSoilSurfacePart(RealBody &soil_body)
         : BodyPartByParticle(soil_body),
+          pos_(soil_body.getBaseParticles().getVariableDataByName<Vecd>("Position")),
           erosion_state_(soil_body.getBaseParticles().registerStateVariableData<int>("ErosionState")),
           surface_indicator_(soil_body.getBaseParticles().registerStateVariableData<int>("Indicator"))
     {
@@ -172,7 +173,7 @@ class NonErodedSoilSurfacePart : public BodyPartByParticle
 
     bool tagBySurfaceState(size_t particle_index)
     {
-        return erosion_state_[particle_index] == 0 && surface_indicator_[particle_index] == 1;
+        return erosion_state_[particle_index] == 0 && (surface_indicator_[particle_index] == 1 || isSoilSurface(particle_index));
     }
 
     void updateTags()
@@ -183,8 +184,15 @@ class NonErodedSoilSurfacePart : public BodyPartByParticle
     }
 
   protected:
+    Vecd *pos_;
     int *erosion_state_;
     int *surface_indicator_;
+
+    bool isSoilSurface(size_t particle_index) const
+    {
+        const Real surface_buffer = 0.5 * particle_spacing_ref;
+        return pos_[particle_index][1] >= (LH - surface_buffer);
+    }
 };
 
 //---------------------------------------------------------------------- 
