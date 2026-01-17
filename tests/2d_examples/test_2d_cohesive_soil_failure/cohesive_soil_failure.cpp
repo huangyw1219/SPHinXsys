@@ -22,6 +22,7 @@ int main(int ac, char *av[])
                                               hbp_yield_stress, hbp_consistency, hbp_flow_index, hbp_regularization);
     soil_block.generateParticles<BaseParticles, Lattice>();
     int *soil_erosion_state = soil_block.getBaseParticles().registerStateVariableData<int>("ErosionState");
+    soil_block.getBaseParticles().addEvolvingVariable<int>("ErosionState");
     for (UnsignedInt i = 0; i < soil_block.getBaseParticles().TotalRealParticles(); ++i)
         soil_erosion_state[i] = 0;
 
@@ -33,6 +34,7 @@ int main(int ac, char *av[])
     water_block.getBaseParticles().registerStateVariableData<Real>("Pressure");
     water_block.getBaseParticles().addEvolvingVariable<Real>("Pressure");
     int *water_erosion_state = water_block.getBaseParticles().registerStateVariableData<int>("ErosionState");
+    water_block.getBaseParticles().addEvolvingVariable<int>("ErosionState");
     for (UnsignedInt i = 0; i < water_block.getBaseParticles().TotalRealParticles(); ++i)
         water_erosion_state[i] = 0;
 
