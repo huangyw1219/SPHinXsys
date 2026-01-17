@@ -267,12 +267,12 @@ class WaterWallBoundaryFromSoil : public LocalDynamics, public DataDelegateConta
   public:
     explicit WaterWallBoundaryFromSoil(BaseContactRelation &contact_relation)
         : LocalDynamics(contact_relation.getSPHBody()), DataDelegateContact(contact_relation),
-          rho_(particles_->getVariableDataByName<Real>("Density")),
-          p_(particles_->getVariableDataByName<Real>("Pressure")),
-          mass_(particles_->getVariableDataByName<Real>("Mass")),
-          force_(particles_->getVariableDataByName<Vecd>("Force")),
-          force_prior_(particles_->getVariableDataByName<Vecd>("ForcePrior")),
-          drho_dt_(particles_->getVariableDataByName<Real>("DensityChangeRate"))
+          rho_(particles_->registerStateVariableData<Real>("Density")),
+          p_(particles_->registerStateVariableData<Real>("Pressure")),
+          mass_(particles_->registerStateVariableData<Real>("Mass")),
+          force_(particles_->registerStateVariableData<Vecd>("Force")),
+          force_prior_(particles_->registerStateVariableData<Vecd>("ForcePrior")),
+          drho_dt_(particles_->registerStateVariableData<Real>("DensityChangeRate"))
     {
         for (size_t k = 0; k != contact_particles_.size(); ++k)
         {
