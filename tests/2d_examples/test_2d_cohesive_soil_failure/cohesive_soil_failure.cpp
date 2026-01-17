@@ -120,6 +120,7 @@ int main(int ac, char *av[])
     correction_matrix.exec();
     soil_water_contact.updateConfiguration();
     water_soil_contact.updateConfiguration();
+    non_eroded_soil.updateTags();
     water_soil_wall_contact.updateConfiguration();
     //----------------------------------------------------------------------
     //	Setup for time-stepping control
