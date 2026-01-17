@@ -262,21 +262,21 @@ class SyncSoilWallProxy : public LocalDynamics
           soil_vel_(soil_particles_.registerStateVariableData<Vecd>("Velocity")),
           soil_normal_(soil_particles_.registerStateVariableData<Vecd>("NormalDirection")),
           soil_surface_normal_(soil_particles_.registerStateVariableData<Vecd>("SurfaceNormal")),
-          soil_indicator_(soil_particles_.registerStateVariableData<int>("Indicator")),
+          soil_interface_indicator_(soil_particles_.registerStateVariableData<int>("InterfaceIndicator")),
           soil_erosion_state_(soil_particles_.registerStateVariableData<int>("ErosionState")),
           wall_pos_(wall_particles_.registerStateVariableData<Vecd>("Position")),
           wall_vel_(wall_particles_.registerStateVariableData<Vecd>("Velocity")),
           wall_acc_(wall_particles_.registerStateVariableData<Vecd>("Acceleration")),
           wall_normal_(wall_particles_.registerStateVariableData<Vecd>("NormalDirection")),
           wall_surface_normal_(wall_particles_.registerStateVariableData<Vecd>("SurfaceNormal")),
-          wall_indicator_(wall_particles_.registerStateVariableData<int>("Indicator")),
+          wall_interface_indicator_(wall_particles_.registerStateVariableData<int>("InterfaceIndicator")),
           wall_erosion_state_(wall_particles_.registerStateVariableData<int>("ErosionState"))
     {
         wall_particles_.addEvolvingVariable<Vecd>("Velocity");
         wall_particles_.addEvolvingVariable<Vecd>("Acceleration");
         wall_particles_.addEvolvingVariable<Vecd>("NormalDirection");
         wall_particles_.addEvolvingVariable<Vecd>("SurfaceNormal");
-        wall_particles_.addEvolvingVariable<int>("Indicator");
+        wall_particles_.addEvolvingVariable<int>("InterfaceIndicator");
         wall_particles_.addEvolvingVariable<int>("ErosionState");
     }
 
@@ -287,7 +287,7 @@ class SyncSoilWallProxy : public LocalDynamics
         wall_acc_[index_i] = Vecd::Zero();
         wall_normal_[index_i] = soil_normal_[index_i];
         wall_surface_normal_[index_i] = soil_surface_normal_[index_i];
-        wall_indicator_[index_i] = soil_indicator_[index_i];
+        wall_interface_indicator_[index_i] = soil_interface_indicator_[index_i];
         wall_erosion_state_[index_i] = soil_erosion_state_[index_i];
     }
 
@@ -298,14 +298,14 @@ class SyncSoilWallProxy : public LocalDynamics
     Vecd *soil_vel_;
     Vecd *soil_normal_;
     Vecd *soil_surface_normal_;
-    int *soil_indicator_;
+    int *soil_interface_indicator_;
     int *soil_erosion_state_;
     Vecd *wall_pos_;
     Vecd *wall_vel_;
     Vecd *wall_acc_;
     Vecd *wall_normal_;
     Vecd *wall_surface_normal_;
-    int *wall_indicator_;
+    int *wall_interface_indicator_;
     int *wall_erosion_state_;
 };
 //----------------------------------------------------------------------

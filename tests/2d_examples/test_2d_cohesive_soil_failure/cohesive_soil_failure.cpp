@@ -159,9 +159,9 @@ int main(int ac, char *av[])
     surface_indicator.exec();
     free_surface_normal.exec();
     soil_surface_normal_to_wall.exec();
-    sync_soil_wall_proxy.exec();
     soil_water_contact.updateConfiguration();
     erosion_state_update.exec();
+    sync_soil_wall_proxy.exec();
     non_eroded_soil.updateTags();
     non_eroded_surface.updateTags();
     eroded_soil.updateTags();
@@ -213,7 +213,6 @@ int main(int ac, char *av[])
             surface_indicator.exec();
             free_surface_normal.exec();
             soil_surface_normal_to_wall.exec();
-            sync_soil_wall_proxy.exec();
             transport_velocity_correction.exec();
             soil_force_from_water.exec();
             Real dt_s = soil_acoustic_time_step.exec();
@@ -225,6 +224,7 @@ int main(int ac, char *av[])
             granular_density_relaxation.exec(dt);
             erosion_state_update.exec();
             eroded_soil_velocity_relaxation.exec();
+            sync_soil_wall_proxy.exec();
             non_eroded_soil.updateTags();
             non_eroded_surface.updateTags();
             eroded_soil.updateTags();
