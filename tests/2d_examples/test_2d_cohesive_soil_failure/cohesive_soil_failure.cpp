@@ -103,7 +103,7 @@ int main(int ac, char *av[])
     InteractionWithUpdate<fluid_dynamics::DensitySummationComplexFreeSurface> soil_density_by_summation(soil_block_inner, soil_block_contact);
     InteractionDynamics<continuum_dynamics::StressDiffusion> stress_diffusion(soil_block_inner);
     InteractionWithUpdate<FreeSurfaceIndicationComplex> surface_indicator(soil_block_inner, soil_block_contact);
-    SimpleDynamics<NormalDirectionFromSurfaceNormal> soil_surface_normal_to_wall(soil_block);
+    SimpleDynamics<NormalDirectionFromBodyShape> soil_surface_normal_to_wall(soil_block);
     SimpleDynamics<SyncSoilWallProxy> sync_soil_wall_proxy(soil_block, soil_wall_proxy);
     SimpleDynamics<ErosionStateByVelocity> erosion_state_update(soil_block_inner, soil_water_contact);
     SimpleDynamics<ErodedSoilVelocityRelaxation> eroded_soil_velocity_relaxation(soil_water_contact);
