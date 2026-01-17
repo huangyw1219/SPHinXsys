@@ -120,6 +120,7 @@ int main(int ac, char *av[])
     correction_matrix.exec();
     soil_water_contact.updateConfiguration();
     water_soil_contact.updateConfiguration();
+    water_soil_wall_contact.updateConfiguration();
     //----------------------------------------------------------------------
     //	Setup for time-stepping control
     //----------------------------------------------------------------------
@@ -171,6 +172,7 @@ int main(int ac, char *av[])
             granular_density_relaxation.exec(dt);
             erosion_state_update.exec();
             non_eroded_soil.updateTags();
+            water_soil_wall_contact.updateConfiguration();
             water_density_by_summation.exec();
             water_viscous_force.exec();
             water_pressure_relaxation.exec(dt);
