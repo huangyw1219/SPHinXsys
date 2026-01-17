@@ -94,6 +94,35 @@ class WaterBlock : public MultiPolygonShape
         multi_polygon_.addAPolygon(water_shape, ShapeBooleanOps::add);
     }
 };
+//---------------------------------------------------------------------- 
+//	土体 wall 代理体粒子生成：与土体粒子保持一一对应
+//----------------------------------------------------------------------
+class SoilWallProxyParticles;
+
+template <>
+class ParticleGenerator<BaseParticles, SoilWallProxyParticles> : public ParticleGenerator<BaseParticles>
+{
+  public:
+    ParticleGenerator(SPHBody &sph_body, BaseParticles &base_particles, BaseParticles &source_particles)
+        : ParticleGenerator<BaseParticles>(sph_body, base_particles),
+          source_particles_(source_particles),
+          source_pos_(source_particles.getVariableDataByName<Vecd>("Position")),
+          source_Vol_(source_particles.getVariableDataByName<Real>("VolumetricMeasure")) {}
+
+  protected:
+    BaseParticles &source_particles_;
+    Vecd *source_pos_;
+    Real *source_Vol_;
+
+    void prepareGeometricData() override
+    {
+        size_t total_real_particles = source_particles_.TotalRealParticles();
+        for (size_t i = 0; i != total_real_particles; ++i)
+        {
+            addPositionAndVolumetricMeasure(source_pos_[i], source_Vol_[i]);
+        }
+    }
+};
 //----------------------------------------------------------------------
 //	未侵蚀土体粒子集合：作为水体动态壁面
 //----------------------------------------------------------------------

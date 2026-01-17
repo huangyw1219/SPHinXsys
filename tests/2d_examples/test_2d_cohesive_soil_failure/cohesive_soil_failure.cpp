@@ -63,7 +63,7 @@ int main(int ac, char *av[])
     wall_boundary.generateParticles<BaseParticles, Lattice>();
     SolidBody soil_wall_proxy(sph_system, makeShared<Soil>("SoilWallProxy"));
     soil_wall_proxy.defineMaterial<Solid>();
-    soil_wall_proxy.generateParticles<BaseParticles, Lattice>();
+    soil_wall_proxy.generateParticles<BaseParticles, SoilWallProxyParticles>(soil_block.getBaseParticles());
     //----------------------------------------------------------------------
     //	Define body relation map.
     //	The contact map gives the topological connections between the bodies.
