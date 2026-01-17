@@ -21,6 +21,18 @@ int main(int ac, char *av[])
     soil_block.defineMaterial<DpHbpContinuum>(rho0_s, c_s, Youngs_modulus, poisson, friction_angle, cohesion,
                                               hbp_yield_stress, hbp_consistency, hbp_flow_index, hbp_regularization);
     soil_block.generateParticles<BaseParticles, Lattice>();
+    soil_block.getBaseParticles().registerStateVariableData<Vecd>("Velocity");
+    soil_block.getBaseParticles().addEvolvingVariable<Vecd>("Velocity");
+    soil_block.getBaseParticles().registerStateVariableData<Real>("Pressure");
+    soil_block.getBaseParticles().addEvolvingVariable<Real>("Pressure");
+    soil_block.getBaseParticles().registerStateVariableData<Vecd>("Force");
+    soil_block.getBaseParticles().addEvolvingVariable<Vecd>("Force");
+    soil_block.getBaseParticles().registerStateVariableData<Vecd>("ForcePrior");
+    soil_block.getBaseParticles().addEvolvingVariable<Vecd>("ForcePrior");
+    soil_block.getBaseParticles().registerStateVariableData<Real>("DensityChangeRate");
+    soil_block.getBaseParticles().addEvolvingVariable<Real>("DensityChangeRate");
+    soil_block.getBaseParticles().registerStateVariableData<Real>("Density");
+    soil_block.getBaseParticles().addEvolvingVariable<Real>("Density");
     int *soil_erosion_state = soil_block.getBaseParticles().registerStateVariableData<int>("ErosionState");
     soil_block.getBaseParticles().addEvolvingVariable<int>("ErosionState");
     for (UnsignedInt i = 0; i < soil_block.getBaseParticles().TotalRealParticles(); ++i)
@@ -33,6 +45,14 @@ int main(int ac, char *av[])
     water_block.getBaseParticles().addEvolvingVariable<Vecd>("Velocity");
     water_block.getBaseParticles().registerStateVariableData<Real>("Pressure");
     water_block.getBaseParticles().addEvolvingVariable<Real>("Pressure");
+    water_block.getBaseParticles().registerStateVariableData<Vecd>("Force");
+    water_block.getBaseParticles().addEvolvingVariable<Vecd>("Force");
+    water_block.getBaseParticles().registerStateVariableData<Vecd>("ForcePrior");
+    water_block.getBaseParticles().addEvolvingVariable<Vecd>("ForcePrior");
+    water_block.getBaseParticles().registerStateVariableData<Real>("DensityChangeRate");
+    water_block.getBaseParticles().addEvolvingVariable<Real>("DensityChangeRate");
+    water_block.getBaseParticles().registerStateVariableData<Real>("Density");
+    water_block.getBaseParticles().addEvolvingVariable<Real>("Density");
     int *water_erosion_state = water_block.getBaseParticles().registerStateVariableData<int>("ErosionState");
     water_block.getBaseParticles().addEvolvingVariable<int>("ErosionState");
     for (UnsignedInt i = 0; i < water_block.getBaseParticles().TotalRealParticles(); ++i)
