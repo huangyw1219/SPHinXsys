@@ -52,8 +52,10 @@ BoundingBoxd BodyPartByParticle::getBodyPartBounds()
 //=================================================================================================//
 void BodyPartByParticle::tagParticles(TaggingParticleMethod &tagging_particle_method)
 {
+    body_part_particles_.clear();
     for (size_t i = 0; i != base_particles_.TotalRealParticles(); ++i)
     {
+        dv_body_part_id_->setValue(i, 0);
         if (tagging_particle_method(i))
         {
             dv_body_part_id_->setValue(i, part_id_);
