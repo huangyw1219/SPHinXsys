@@ -552,7 +552,7 @@ class ErosionStateByVelocity : public LocalDynamics, public DataDelegateInner, p
         Real weight_sum = 0.0;
         Vecd velocity_sum = Vecd::Zero();
         bool has_interface = false;
-        Neighborhood &inner_neighborhood = (*inner_configuration_)[index_i];
+        Neighborhood &inner_neighborhood = inner_configuration_[index_i];
         for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
         {
             size_t index_j = inner_neighborhood.j_[n];
