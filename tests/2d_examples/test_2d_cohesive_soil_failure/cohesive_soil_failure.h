@@ -101,7 +101,7 @@ class NonErodedSoilPart : public BodyPartByParticle
   public:
     explicit NonErodedSoilPart(RealBody &soil_body)
         : BodyPartByParticle(soil_body),
-          erosion_state_(soil_body.getBaseParticles().getVariableDataByName<int>("ErosionState"))
+          erosion_state_(soil_body.getBaseParticles().registerStateVariableData<int>("ErosionState"))
     {
         TaggingParticleMethod tagging_particle_method =
             std::bind(&NonErodedSoilPart::tagByErosionState, this, std::placeholders::_1);
@@ -154,14 +154,14 @@ class SoilForceFromWater : public ForcePrior, public DataDelegateContact
   public:
     explicit SoilForceFromWater(BaseContactRelation &contact_relation)
         : ForcePrior(contact_relation.getSPHBody(), "SoilWaterForce"), DataDelegateContact(contact_relation),
-          vel_(particles_->getVariableDataByName<Vecd>("Velocity")),
-          erosion_state_(particles_->getVariableDataByName<int>("ErosionState")),
+          vel_(particles_->registerStateVariableData<Vecd>("Velocity")),
+          erosion_state_(particles_->registerStateVariableData<int>("ErosionState")),
           Vol_(particles_->getVariableDataByName<Real>("VolumetricMeasure"))
     {
         for (size_t k = 0; k != contact_particles_.size(); ++k)
         {
-            contact_vel_.push_back(contact_particles_[k]->getVariableDataByName<Vecd>("Velocity"));
-            contact_p_.push_back(contact_particles_[k]->getVariableDataByName<Real>("Pressure"));
+            contact_vel_.push_back(contact_particles_[k]->registerStateVariableData<Vecd>("Velocity"));
+            contact_p_.push_back(contact_particles_[k]->registerStateVariableData<Real>("Pressure"));
             contact_Vol_.push_back(contact_particles_[k]->getVariableDataByName<Real>("VolumetricMeasure"));
             smoothing_length_.push_back(contact_bodies_[k]->getSPHAdaptation().ReferenceSmoothingLength());
         }
@@ -211,13 +211,13 @@ class WaterForceFromSoil : public ForcePrior, public DataDelegateContact
   public:
     explicit WaterForceFromSoil(BaseContactRelation &contact_relation)
         : ForcePrior(contact_relation.getSPHBody(), "WaterSoilForce"), DataDelegateContact(contact_relation),
-          vel_(particles_->getVariableDataByName<Vecd>("Velocity")),
+          vel_(particles_->registerStateVariableData<Vecd>("Velocity")),
           Vol_(particles_->getVariableDataByName<Real>("VolumetricMeasure"))
     {
         for (size_t k = 0; k != contact_particles_.size(); ++k)
         {
-            contact_vel_.push_back(contact_particles_[k]->getVariableDataByName<Vecd>("Velocity"));
-            contact_p_.push_back(contact_particles_[k]->getVariableDataByName<Real>("Pressure"));
+            contact_vel_.push_back(contact_particles_[k]->registerStateVariableData<Vecd>("Velocity"));
+            contact_p_.push_back(contact_particles_[k]->registerStateVariableData<Real>("Pressure"));
             contact_Vol_.push_back(contact_particles_[k]->getVariableDataByName<Real>("VolumetricMeasure"));
             contact_erosion_state_.push_back(contact_particles_[k]->getVariableDataByName<int>("ErosionState"));
             smoothing_length_.push_back(contact_bodies_[k]->getSPHAdaptation().ReferenceSmoothingLength());
@@ -322,8 +322,8 @@ class ErosionStateByVelocity : public LocalDynamics, public DataDelegateContact
     explicit ErosionStateByVelocity(BaseContactRelation &contact_relation)
         : LocalDynamics(contact_relation.getSPHBody()), DataDelegateContact(contact_relation),
           pos_(particles_->getVariableDataByName<Vecd>("Position")),
-          vel_(particles_->getVariableDataByName<Vecd>("Velocity")),
-          erosion_state_(particles_->getVariableDataByName<int>("ErosionState")),
+          vel_(particles_->registerStateVariableData<Vecd>("Velocity")),
+          erosion_state_(particles_->registerStateVariableData<int>("ErosionState")),
           erosion_start_pos_(particles_->registerStateVariableData<Vecd>("ErosionStartPosition")),
           interface_indicator_(particles_->registerStateVariableData<int>("InterfaceIndicator"))
     {
@@ -331,7 +331,7 @@ class ErosionStateByVelocity : public LocalDynamics, public DataDelegateContact
         particles_->addEvolvingVariable<int>("InterfaceIndicator");
         for (size_t k = 0; k != contact_particles_.size(); ++k)
         {
-            contact_vel_.push_back(contact_particles_[k]->getVariableDataByName<Vecd>("Velocity"));
+            contact_vel_.push_back(contact_particles_[k]->registerStateVariableData<Vecd>("Velocity"));
             contact_Vol_.push_back(contact_particles_[k]->getVariableDataByName<Real>("VolumetricMeasure"));
         }
     }
