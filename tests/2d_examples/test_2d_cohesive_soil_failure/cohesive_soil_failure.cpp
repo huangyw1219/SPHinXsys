@@ -70,10 +70,11 @@ int main(int ac, char *av[])
     ContactRelation soil_block_contact(soil_block, {&wall_boundary});
     ContactRelation soil_water_contact(soil_block, {&water_block});
     NonErodedSoilPart non_eroded_soil(soil_block);
+    ErodedSoilPart eroded_soil(soil_block);
     InnerRelation water_block_inner(water_block);
     ContactRelation water_block_contact(water_block, {&wall_boundary});
-    ContactRelation water_soil_contact(water_block, {&soil_block});
-    ContactRelationToBodyPart water_soil_wall_contact(water_block, BodyPartVector{&non_eroded_soil});
+    ContactRelationToBodyPart water_non_eroded_contact(water_block, BodyPartVector{&non_eroded_soil});
+    ContactRelationToBodyPart water_eroded_contact(water_block, BodyPartVector{&eroded_soil});
     //----------------------------------------------------------------------
     // Combined relations built from basic relations
     // which is only used for update configuration.
@@ -96,6 +97,7 @@ int main(int ac, char *av[])
     InteractionDynamics<continuum_dynamics::StressDiffusion> stress_diffusion(soil_block_inner);
     InteractionWithUpdate<FreeSurfaceIndicationComplex> surface_indicator(soil_block_inner, soil_block_contact);
     SimpleDynamics<ErosionStateByVelocity> erosion_state_update(soil_water_contact);
+    SimpleDynamics<ErodedSoilVelocityRelaxation> eroded_soil_velocity_relaxation(soil_water_contact);
     SimpleDynamics<SoilForceFromWater> soil_force_from_water(soil_water_contact);
     InteractionWithUpdate<TransportVelocityCorrectionComplex<AllParticles>> transport_velocity_correction(soil_block_inner, soil_block_contact);
     InteractionWithUpdate<FreeSurfaceNormalComplex> free_surface_normal(soil_block_inner, soil_block_contact);
@@ -104,8 +106,8 @@ int main(int ac, char *av[])
     Dynamics1Level<fluid_dynamics::Integration2ndHalfWithWallRiemann> water_density_relaxation(water_block_inner, water_block_contact);
     InteractionWithUpdate<fluid_dynamics::DensitySummationComplexFreeSurface> water_density_by_summation(water_block_inner, water_block_contact);
     InteractionWithUpdate<fluid_dynamics::ViscousForceWithWall> water_viscous_force(water_block_inner, water_block_contact);
-    SimpleDynamics<WaterForceFromSoil> water_force_from_soil(water_soil_contact);
-    InteractionDynamics<WaterWallBoundaryFromSoil> water_wall_boundary_from_soil(water_soil_wall_contact);
+    SimpleDynamics<WaterForceFromSoil> water_force_from_soil(water_eroded_contact);
+    InteractionDynamics<WaterRepulsionFromSoil> water_repulsion_from_soil(water_non_eroded_contact);
     ReduceDynamics<fluid_dynamics::AdvectionViscousTimeStep> water_advection_time_step(water_block, U_f, 0.1);
     ReduceDynamics<fluid_dynamics::AcousticTimeStep> water_acoustic_time_step(water_block);
     //----------------------------------------------------------------------
@@ -139,12 +141,12 @@ int main(int ac, char *av[])
     soil_initial_condition.exec();
     correction_matrix.exec();
     soil_water_contact.updateConfiguration();
-    water_soil_contact.updateConfiguration();
     non_eroded_soil.updateTags();
+    eroded_soil.updateTags();
     if (non_eroded_soil.SizeOfLoopRange() > 0)
-    {
-        water_soil_wall_contact.updateConfiguration();
-    }
+        water_non_eroded_contact.updateConfiguration();
+    if (eroded_soil.SizeOfLoopRange() > 0)
+        water_eroded_contact.updateConfiguration();
     //----------------------------------------------------------------------
     //	Setup for time-stepping control
     //----------------------------------------------------------------------
@@ -186,7 +188,6 @@ int main(int ac, char *av[])
             free_surface_normal.exec();
             transport_velocity_correction.exec();
             soil_force_from_water.exec();
-            water_force_from_soil.exec();
             Real dt_s = soil_acoustic_time_step.exec();
             Real Dt_f = water_advection_time_step.exec();
             Real dt_f = water_acoustic_time_step.exec();
@@ -195,18 +196,20 @@ int main(int ac, char *av[])
             granular_stress_relaxation.exec(dt);
             granular_density_relaxation.exec(dt);
             erosion_state_update.exec();
+            eroded_soil_velocity_relaxation.exec();
             non_eroded_soil.updateTags();
+            eroded_soil.updateTags();
             if (non_eroded_soil.SizeOfLoopRange() > 0)
-            {
-                water_soil_wall_contact.updateConfiguration();
-            }
+                water_non_eroded_contact.updateConfiguration();
+            if (eroded_soil.SizeOfLoopRange() > 0)
+                water_eroded_contact.updateConfiguration();
             water_density_by_summation.exec();
+            if (eroded_soil.SizeOfLoopRange() > 0)
+                water_force_from_soil.exec();
             water_viscous_force.exec();
             water_pressure_relaxation.exec(dt);
             if (non_eroded_soil.SizeOfLoopRange() > 0)
-            {
-                water_wall_boundary_from_soil.exec();
-            }
+                water_repulsion_from_soil.exec();
             water_density_relaxation.exec(dt);
             integration_time += dt;
             physical_time += dt;
@@ -235,7 +238,6 @@ int main(int ac, char *av[])
             water_block.updateCellLinkedList();
             water_block_complex.updateConfiguration();
             soil_water_contact.updateConfiguration();
-            water_soil_contact.updateConfiguration();
             correction_matrix.exec();
             interval_updating_configuration += TickCount::now() - time_instance;
         }
