@@ -155,7 +155,7 @@ class NonErodedSoilPart : public BodyPartByParticle
 };
 
 //----------------------------------------------------------------------
-//	未侵蚀土体表层粒子集合：用于水体 wall 接触
+//	未侵蚀土体表层粒子集合：用于水体 wall 接触（非侵蚀 + 接触水体）
 //----------------------------------------------------------------------
 class NonErodedSoilSurfacePart : public BodyPartByParticle
 {
@@ -163,7 +163,7 @@ class NonErodedSoilSurfacePart : public BodyPartByParticle
     explicit NonErodedSoilSurfacePart(RealBody &soil_body)
         : BodyPartByParticle(soil_body),
           erosion_state_(soil_body.getBaseParticles().registerStateVariableData<int>("ErosionState")),
-          indicator_(soil_body.getBaseParticles().registerStateVariableData<int>("Indicator"))
+          interface_indicator_(soil_body.getBaseParticles().registerStateVariableData<int>("InterfaceIndicator"))
     {
         TaggingParticleMethod tagging_particle_method =
             std::bind(&NonErodedSoilSurfacePart::tagBySurfaceState, this, std::placeholders::_1);
@@ -172,7 +172,7 @@ class NonErodedSoilSurfacePart : public BodyPartByParticle
 
     bool tagBySurfaceState(size_t particle_index)
     {
-        return erosion_state_[particle_index] == 0 && indicator_[particle_index] == 1;
+        return erosion_state_[particle_index] == 0 && interface_indicator_[particle_index] == 1;
     }
 
     void updateTags()
@@ -184,7 +184,7 @@ class NonErodedSoilSurfacePart : public BodyPartByParticle
 
   protected:
     int *erosion_state_;
-    int *indicator_;
+    int *interface_indicator_;
 };
 
 //---------------------------------------------------------------------- 

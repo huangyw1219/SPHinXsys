@@ -161,6 +161,7 @@ int main(int ac, char *av[])
     soil_surface_normal_to_wall.exec();
     sync_soil_wall_proxy.exec();
     soil_water_contact.updateConfiguration();
+    erosion_state_update.exec();
     non_eroded_soil.updateTags();
     non_eroded_surface.updateTags();
     eroded_soil.updateTags();
