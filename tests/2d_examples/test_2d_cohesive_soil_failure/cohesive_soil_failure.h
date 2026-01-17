@@ -220,6 +220,90 @@ class NormalDirectionFromSurfaceNormal : public LocalDynamics
     Vecd *normal_direction_;
 };
 //----------------------------------------------------------------------
+//	同步土体粒子状态到 wall 代理体
+//----------------------------------------------------------------------
+class SyncSoilWallProxy : public LocalDynamics
+{
+  public:
+    SyncSoilWallProxy(RealBody &soil_body, RealBody &wall_proxy_body)
+        : LocalDynamics(soil_body),
+          soil_particles_(soil_body.getBaseParticles()),
+          wall_particles_(wall_proxy_body.getBaseParticles()),
+          soil_pos_(soil_particles_.getVariableDataByName<Vecd>("Position")),
+          soil_vel_(soil_particles_.registerStateVariableData<Vecd>("Velocity")),
+          soil_normal_(soil_particles_.registerStateVariableData<Vecd>("NormalDirection")),
+          soil_surface_normal_(soil_particles_.registerStateVariableData<Vecd>("SurfaceNormal")),
+          soil_indicator_(soil_particles_.registerStateVariableData<int>("Indicator")),
+          soil_erosion_state_(soil_particles_.registerStateVariableData<int>("ErosionState")),
+          wall_pos_(wall_particles_.registerStateVariableData<Vecd>("Position")),
+          wall_vel_(wall_particles_.registerStateVariableData<Vecd>("Velocity")),
+          wall_acc_(wall_particles_.registerStateVariableData<Vecd>("Acceleration")),
+          wall_normal_(wall_particles_.registerStateVariableData<Vecd>("NormalDirection")),
+          wall_surface_normal_(wall_particles_.registerStateVariableData<Vecd>("SurfaceNormal")),
+          wall_indicator_(wall_particles_.registerStateVariableData<int>("Indicator")),
+          wall_erosion_state_(wall_particles_.registerStateVariableData<int>("ErosionState"))
+    {
+        wall_particles_.addEvolvingVariable<Vecd>("Velocity");
+        wall_particles_.addEvolvingVariable<Vecd>("Acceleration");
+        wall_particles_.addEvolvingVariable<Vecd>("NormalDirection");
+        wall_particles_.addEvolvingVariable<Vecd>("SurfaceNormal");
+        wall_particles_.addEvolvingVariable<int>("Indicator");
+        wall_particles_.addEvolvingVariable<int>("ErosionState");
+    }
+
+    void update(size_t index_i, Real dt)
+    {
+        wall_pos_[index_i] = soil_pos_[index_i];
+        wall_vel_[index_i] = soil_vel_[index_i];
+        wall_acc_[index_i] = Vecd::Zero();
+        wall_normal_[index_i] = soil_normal_[index_i];
+        wall_surface_normal_[index_i] = soil_surface_normal_[index_i];
+        wall_indicator_[index_i] = soil_indicator_[index_i];
+        wall_erosion_state_[index_i] = soil_erosion_state_[index_i];
+    }
+
+  protected:
+    BaseParticles &soil_particles_;
+    BaseParticles &wall_particles_;
+    Vecd *soil_pos_;
+    Vecd *soil_vel_;
+    Vecd *soil_normal_;
+    Vecd *soil_surface_normal_;
+    int *soil_indicator_;
+    int *soil_erosion_state_;
+    Vecd *wall_pos_;
+    Vecd *wall_vel_;
+    Vecd *wall_acc_;
+    Vecd *wall_normal_;
+    Vecd *wall_surface_normal_;
+    int *wall_indicator_;
+    int *wall_erosion_state_;
+};
+//----------------------------------------------------------------------
+//	将 wall 代理体上的流体作用力转移到土体
+//----------------------------------------------------------------------
+class SoilForceFromProxyFluid : public ForcePrior
+{
+  public:
+    SoilForceFromProxyFluid(RealBody &soil_body, RealBody &wall_proxy_body)
+        : ForcePrior(soil_body, "ProxyFluidForce"),
+          proxy_pressure_(wall_proxy_body.getBaseParticles().registerStateVariableData<Vecd>("PressureForceFromFluid")),
+          proxy_viscous_(wall_proxy_body.getBaseParticles().registerStateVariableData<Vecd>("ViscousForceFromFluid"))
+    {
+        particles_->addEvolvingVariable<Vecd>("ProxyFluidForce");
+    }
+
+    void update(size_t index_i, Real dt)
+    {
+        current_force_[index_i] = proxy_pressure_[index_i] + proxy_viscous_[index_i];
+        ForcePrior::update(index_i, dt);
+    }
+
+  protected:
+    Vecd *proxy_pressure_;
+    Vecd *proxy_viscous_;
+};
+//----------------------------------------------------------------------
 //	application dependent initial condition
 //----------------------------------------------------------------------
 class SoilInitialCondition : public continuum_dynamics::ContinuumInitialCondition
