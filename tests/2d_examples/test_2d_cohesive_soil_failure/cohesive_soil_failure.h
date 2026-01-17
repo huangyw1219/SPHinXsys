@@ -233,6 +233,7 @@ class NormalDirectionFromSurfaceNormal : public LocalDynamics
   public:
     explicit NormalDirectionFromSurfaceNormal(RealBody &soil_body)
         : LocalDynamics(soil_body),
+          pos_(particles_->getVariableDataByName<Vecd>("Position")),
           surface_normal_(particles_->registerStateVariableData<Vecd>("SurfaceNormal")),
           normal_direction_(particles_->registerStateVariableData<Vecd>("NormalDirection"))
     {
@@ -246,6 +247,10 @@ class NormalDirectionFromSurfaceNormal : public LocalDynamics
         {
             normal_direction_[index_i] = n / (n.norm() + TinyReal);
         }
+        else if (isTopSurface(index_i))
+        {
+            normal_direction_[index_i] = Vecd(0.0, 1.0);
+        }
         else
         {
             normal_direction_[index_i] = Vecd::Zero();
@@ -253,8 +258,15 @@ class NormalDirectionFromSurfaceNormal : public LocalDynamics
     }
 
   protected:
+    Vecd *pos_;
     Vecd *surface_normal_;
     Vecd *normal_direction_;
+
+    bool isTopSurface(size_t index_i) const
+    {
+        const Real surface_buffer = 0.5 * particle_spacing_ref;
+        return pos_[index_i][1] >= (LH - surface_buffer);
+    }
 };
 //----------------------------------------------------------------------
 //	同步土体粒子状态到 wall 代理体
