@@ -205,7 +205,14 @@ class NormalDirectionFromSurfaceNormal : public LocalDynamics
     void update(size_t index_i, Real dt)
     {
         Vecd n = surface_normal_[index_i];
-        normal_direction_[index_i] = n.norm() > TinyReal ? n / (n.norm() + TinyReal) : Vecd::Zero();
+        if (n.norm() > TinyReal)
+        {
+            normal_direction_[index_i] = n / (n.norm() + TinyReal);
+        }
+        else
+        {
+            normal_direction_[index_i] = Vecd::Zero();
+        }
     }
 
   protected:
