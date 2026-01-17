@@ -525,13 +525,15 @@ class WaterWallBoundaryFromSoil : public LocalDynamics, public DataDelegateConta
 //	侵蚀判据：E = v_i - v_ic, 其中 v_ic 按 d50 分段（式 4.3/4.4）
 //	沉积判据：D > dp 且 E <= 0 且 v_is = 0（式 4.10-4.12）
 //----------------------------------------------------------------------
-class ErosionStateByVelocity : public LocalDynamics, public DataDelegateContact
+class ErosionStateByVelocity : public LocalDynamics, public DataDelegateInner, public DataDelegateContact
 {
   public:
-    explicit ErosionStateByVelocity(BaseContactRelation &contact_relation)
-        : LocalDynamics(contact_relation.getSPHBody()), DataDelegateContact(contact_relation),
+    ErosionStateByVelocity(BaseInnerRelation &inner_relation, BaseContactRelation &contact_relation)
+        : LocalDynamics(inner_relation.getSPHBody()),
+          DataDelegateInner(inner_relation), DataDelegateContact(contact_relation),
           pos_(particles_->getVariableDataByName<Vecd>("Position")),
           vel_(particles_->registerStateVariableData<Vecd>("Velocity")),
+          Vol_(particles_->getVariableDataByName<Real>("VolumetricMeasure")),
           erosion_state_(particles_->registerStateVariableData<int>("ErosionState")),
           erosion_start_pos_(particles_->registerStateVariableData<Vecd>("ErosionStartPosition")),
           interface_indicator_(particles_->registerStateVariableData<int>("InterfaceIndicator"))
@@ -549,14 +551,26 @@ class ErosionStateByVelocity : public LocalDynamics, public DataDelegateContact
     {
         Real weight_sum = 0.0;
         Vecd velocity_sum = Vecd::Zero();
-        interface_indicator_[index_i] = 0;
+        bool has_interface = false;
+        Neighborhood &inner_neighborhood = (*inner_configuration_)[index_i];
+        for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
+        {
+            size_t index_j = inner_neighborhood.j_[n];
+            if (erosion_state_[index_j] == 1)
+            {
+                Real weight = inner_neighborhood.W_ij_[n] * Vol_[index_j];
+                weight_sum += weight;
+                velocity_sum += vel_[index_j] * weight;
+                has_interface = true;
+            }
+        }
         for (size_t k = 0; k < contact_configuration_.size(); ++k)
         {
             Vecd *vel_k = contact_vel_[k];
             Real *Vol_k = contact_Vol_[k];
             Neighborhood &contact_neighborhood = (*contact_configuration_[k])[index_i];
             if (contact_neighborhood.current_size_ > 0)
-                interface_indicator_[index_i] = 1;
+                has_interface = true;
             for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
             {
                 size_t index_j = contact_neighborhood.j_[n];
@@ -566,6 +580,7 @@ class ErosionStateByVelocity : public LocalDynamics, public DataDelegateContact
                 velocity_sum += vel_k[index_j] * weight;
             }
         }
+        interface_indicator_[index_i] = has_interface ? 1 : 0;
 
         if (!interface_indicator_[index_i])
         {
@@ -596,6 +611,7 @@ class ErosionStateByVelocity : public LocalDynamics, public DataDelegateContact
 
   protected:
     Vecd *pos_, *vel_;
+    Real *Vol_;
     int *erosion_state_, *interface_indicator_;
     Vecd *erosion_start_pos_;
     StdVec<Vecd *> contact_vel_;

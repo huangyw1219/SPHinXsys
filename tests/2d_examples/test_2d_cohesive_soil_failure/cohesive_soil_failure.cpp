@@ -105,7 +105,7 @@ int main(int ac, char *av[])
     InteractionWithUpdate<FreeSurfaceIndicationComplex> surface_indicator(soil_block_inner, soil_block_contact);
     SimpleDynamics<NormalDirectionFromSurfaceNormal> soil_surface_normal_to_wall(soil_block);
     SimpleDynamics<SyncSoilWallProxy> sync_soil_wall_proxy(soil_block, soil_wall_proxy);
-    SimpleDynamics<ErosionStateByVelocity> erosion_state_update(soil_water_contact);
+    SimpleDynamics<ErosionStateByVelocity> erosion_state_update(soil_block_inner, soil_water_contact);
     SimpleDynamics<ErodedSoilVelocityRelaxation> eroded_soil_velocity_relaxation(soil_water_contact);
     SimpleDynamics<SoilForceFromWater> soil_force_from_water(soil_eroded_contact);
     SimpleDynamics<SoilForceFromProxyFluid> soil_force_from_proxy(soil_block, soil_wall_proxy);
@@ -142,6 +142,7 @@ int main(int ac, char *av[])
     body_states_recording.addToWrite<int>(soil_block, "Indicator");
     body_states_recording.addToWrite<int>(soil_block, "ErosionState");
     body_states_recording.addToWrite<int>(soil_block, "InterfaceIndicator");
+    body_states_recording.addToWrite<Vecd>(soil_block, "ErosionStartPosition");
     RestartIO restart_io(sph_system);
     RegressionTestDynamicTimeWarping<ReducedQuantityRecording<TotalMechanicalEnergy>>
         write_mechanical_energy(soil_block, gravity);
