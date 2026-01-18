@@ -167,8 +167,7 @@ int main(int ac, char *av[])
     non_eroded_surface.updateTags();
     eroded_soil.updateTags();
     proxy_non_eroded_surface.updateTags();
-    if (proxy_non_eroded_surface.SizeOfLoopRange() > 0)
-        water_non_eroded_wall_contact.updateConfiguration();
+    water_non_eroded_wall_contact.updateConfiguration();
     if (eroded_soil.SizeOfLoopRange() > 0)
         water_eroded_contact.updateConfiguration();
     soil_proxy_contact.updateConfiguration();
@@ -230,8 +229,7 @@ int main(int ac, char *av[])
             non_eroded_surface.updateTags();
             eroded_soil.updateTags();
             proxy_non_eroded_surface.updateTags();
-            if (proxy_non_eroded_surface.SizeOfLoopRange() > 0)
-                water_non_eroded_wall_contact.updateConfiguration();
+            water_non_eroded_wall_contact.updateConfiguration();
             if (eroded_soil.SizeOfLoopRange() > 0)
                 water_eroded_contact.updateConfiguration();
             soil_proxy_contact.updateConfiguration();
