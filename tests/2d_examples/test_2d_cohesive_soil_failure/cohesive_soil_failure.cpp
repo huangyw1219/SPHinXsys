@@ -73,9 +73,9 @@ int main(int ac, char *av[])
     ContactRelation soil_block_contact(soil_block, {&wall_boundary});
     ContactRelation soil_water_contact(soil_block, {&water_block});
     NonErodedSoilPart non_eroded_soil(soil_block);
-    NonErodedSoilSurfacePart non_eroded_surface(soil_block);
+    NonErodedSoilPart non_eroded_surface(soil_block);
     ErodedSoilPart eroded_soil(soil_block);
-    NonErodedSoilSurfacePart proxy_non_eroded_surface(soil_wall_proxy);
+    NonErodedSoilPart proxy_non_eroded_surface(soil_wall_proxy);
     InnerRelation water_block_inner(water_block);
     ContactRelation water_wall_contact(water_block, {&wall_boundary});
     ContactRelationToBodyPart water_non_eroded_wall_contact(water_block, BodyPartVector{&proxy_non_eroded_surface});
