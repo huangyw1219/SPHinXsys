@@ -280,6 +280,7 @@ class SyncSoilWallProxy : public LocalDynamics
           wall_particles_(wall_proxy_body.getBaseParticles()),
           soil_pos_(soil_particles_.getVariableDataByName<Vecd>("Position")),
           soil_vel_(soil_particles_.registerStateVariableData<Vecd>("Velocity")),
+          soil_vol_(soil_particles_.getVariableDataByName<Real>("VolumetricMeasure")),
           soil_normal_(soil_particles_.registerStateVariableData<Vecd>("NormalDirection")),
           soil_surface_normal_(soil_particles_.registerStateVariableData<Vecd>("SurfaceNormal")),
           soil_indicator_(soil_particles_.registerStateVariableData<int>("Indicator")),
@@ -287,6 +288,7 @@ class SyncSoilWallProxy : public LocalDynamics
           wall_pos_(wall_particles_.registerStateVariableData<Vecd>("Position")),
           wall_vel_(wall_particles_.registerStateVariableData<Vecd>("Velocity")),
           wall_acc_(wall_particles_.registerStateVariableData<Vecd>("Acceleration")),
+          wall_vol_(wall_particles_.getVariableDataByName<Real>("VolumetricMeasure")),
           wall_normal_(wall_particles_.registerStateVariableData<Vecd>("NormalDirection")),
           wall_surface_normal_(wall_particles_.registerStateVariableData<Vecd>("SurfaceNormal")),
           wall_indicator_(wall_particles_.registerStateVariableData<int>("Indicator")),
@@ -305,6 +307,7 @@ class SyncSoilWallProxy : public LocalDynamics
         wall_pos_[index_i] = soil_pos_[index_i];
         wall_vel_[index_i] = soil_vel_[index_i];
         wall_acc_[index_i] = Vecd::Zero();
+        wall_vol_[index_i] = soil_vol_[index_i];
         wall_normal_[index_i] = soil_normal_[index_i];
         wall_surface_normal_[index_i] = soil_surface_normal_[index_i];
         wall_indicator_[index_i] = soil_indicator_[index_i];
@@ -316,6 +319,7 @@ class SyncSoilWallProxy : public LocalDynamics
     BaseParticles &wall_particles_;
     Vecd *soil_pos_;
     Vecd *soil_vel_;
+    Real *soil_vol_;
     Vecd *soil_normal_;
     Vecd *soil_surface_normal_;
     int *soil_indicator_;
@@ -323,6 +327,7 @@ class SyncSoilWallProxy : public LocalDynamics
     Vecd *wall_pos_;
     Vecd *wall_vel_;
     Vecd *wall_acc_;
+    Real *wall_vol_;
     Vecd *wall_normal_;
     Vecd *wall_surface_normal_;
     int *wall_indicator_;
@@ -679,9 +684,90 @@ class ErodedSoilVelocityRelaxation : public LocalDynamics, public DataDelegateCo
     StdVec<Vecd *> contact_vel_;
     StdVec<Real *> contact_Vol_;
 };
-//----------------------------------------------------------------------
+//---------------------------------------------------------------------- 
+//	非侵蚀土体的内部力学：跳过侵蚀粒子
+//---------------------------------------------------------------------- 
+class NonErodedPlasticIntegration1stHalfWithWallRiemann
+    : public continuum_dynamics::PlasticIntegration1stHalfWithWallRiemann
+{
+  public:
+    NonErodedPlasticIntegration1stHalfWithWallRiemann(BaseInnerRelation &inner_relation,
+                                                      BaseContactRelation &wall_contact_relation)
+        : continuum_dynamics::PlasticIntegration1stHalfWithWallRiemann(inner_relation, wall_contact_relation),
+          erosion_state_(this->particles_->registerStateVariableData<int>("ErosionState")) {}
+
+    void initialization(size_t index_i, Real dt = 0.0)
+    {
+        if (erosion_state_[index_i] == 0)
+            continuum_dynamics::PlasticIntegration1stHalfWithWallRiemann::initialization(index_i, dt);
+    }
+
+    void interaction(size_t index_i, Real dt = 0.0)
+    {
+        if (erosion_state_[index_i] == 0)
+            continuum_dynamics::PlasticIntegration1stHalfWithWallRiemann::interaction(index_i, dt);
+    }
+
+    void update(size_t index_i, Real dt = 0.0)
+    {
+        if (erosion_state_[index_i] == 0)
+            continuum_dynamics::PlasticIntegration1stHalfWithWallRiemann::update(index_i, dt);
+    }
+
+  protected:
+    int *erosion_state_;
+};
+
+class NonErodedPlasticIntegration2ndHalfSwitchableWithWallRiemann
+    : public continuum_dynamics::PlasticIntegration2ndHalfSwitchableWithWallRiemann
+{
+  public:
+    NonErodedPlasticIntegration2ndHalfSwitchableWithWallRiemann(BaseInnerRelation &inner_relation,
+                                                                BaseContactRelation &wall_contact_relation)
+        : continuum_dynamics::PlasticIntegration2ndHalfSwitchableWithWallRiemann(inner_relation, wall_contact_relation),
+          erosion_state_(this->particles_->registerStateVariableData<int>("ErosionState")) {}
+
+    void initialization(size_t index_i, Real dt = 0.0)
+    {
+        if (erosion_state_[index_i] == 0)
+            continuum_dynamics::PlasticIntegration2ndHalfSwitchableWithWallRiemann::initialization(index_i, dt);
+    }
+
+    void interaction(size_t index_i, Real dt = 0.0)
+    {
+        if (erosion_state_[index_i] == 0)
+            continuum_dynamics::PlasticIntegration2ndHalfSwitchableWithWallRiemann::interaction(index_i, dt);
+    }
+
+    void update(size_t index_i, Real dt = 0.0)
+    {
+        if (erosion_state_[index_i] == 0)
+            continuum_dynamics::PlasticIntegration2ndHalfSwitchableWithWallRiemann::update(index_i, dt);
+    }
+
+  protected:
+    int *erosion_state_;
+};
+
+class NonErodedStressDiffusion : public continuum_dynamics::StressDiffusion
+{
+  public:
+    explicit NonErodedStressDiffusion(BaseInnerRelation &inner_relation)
+        : continuum_dynamics::StressDiffusion(inner_relation),
+          erosion_state_(this->particles_->registerStateVariableData<int>("ErosionState")) {}
+
+    void interaction(size_t index_i, Real dt = 0.0)
+    {
+        if (erosion_state_[index_i] == 0)
+            continuum_dynamics::StressDiffusion::interaction(index_i, dt);
+    }
+
+  protected:
+    int *erosion_state_;
+};
+//---------------------------------------------------------------------- 
 //	Unified transport velocity correction
-//----------------------------------------------------------------------
+//---------------------------------------------------------------------- 
 template <typename... T>
 class TransportVelocityCorrection;
 

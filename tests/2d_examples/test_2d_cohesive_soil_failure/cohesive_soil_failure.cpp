@@ -98,10 +98,10 @@ int main(int ac, char *av[])
     SimpleDynamics<NormalDirectionFromBodyShape> wall_boundary_normal_direction(wall_boundary);
     SimpleDynamics<SoilInitialCondition> soil_initial_condition(soil_block);
     InteractionWithUpdate<LinearGradientCorrectionMatrixComplex> correction_matrix(soil_block_inner, soil_block_contact);
-    Dynamics1Level<continuum_dynamics::PlasticIntegration1stHalfWithWallRiemann> granular_stress_relaxation(soil_block_inner, soil_block_contact);
-    Dynamics1Level<continuum_dynamics::PlasticIntegration2ndHalfSwitchableWithWallRiemann> granular_density_relaxation(soil_block_inner, soil_block_contact);
+    Dynamics1Level<NonErodedPlasticIntegration1stHalfWithWallRiemann> granular_stress_relaxation(soil_block_inner, soil_block_contact);
+    Dynamics1Level<NonErodedPlasticIntegration2ndHalfSwitchableWithWallRiemann> granular_density_relaxation(soil_block_inner, soil_block_contact);
     InteractionWithUpdate<fluid_dynamics::DensitySummationComplexFreeSurface> soil_density_by_summation(soil_block_inner, soil_block_contact);
-    InteractionDynamics<continuum_dynamics::StressDiffusion> stress_diffusion(soil_block_inner);
+    InteractionDynamics<NonErodedStressDiffusion> stress_diffusion(soil_block_inner);
     InteractionWithUpdate<FreeSurfaceIndicationComplex> surface_indicator(soil_block_inner, soil_block_contact);
     SimpleDynamics<NormalDirectionFromBodyShape> soil_surface_normal_to_wall(soil_block);
     SimpleDynamics<SyncSoilWallProxy> sync_soil_wall_proxy(soil_block, soil_wall_proxy);
