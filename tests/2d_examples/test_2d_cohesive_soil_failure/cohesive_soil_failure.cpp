@@ -9,7 +9,7 @@
 //----------------------------------------------------------------------
 int main(int ac, char *av[])
 {
-    bool enable_soil_water_coupling = true;
+    bool enable_soil_water_coupling = false;
     //----------------------------------------------------------------------
     //	Build up the environment of a SPHSystem.
     //----------------------------------------------------------------------
