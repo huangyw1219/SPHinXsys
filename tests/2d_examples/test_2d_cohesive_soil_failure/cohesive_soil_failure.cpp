@@ -133,6 +133,7 @@ int main(int ac, char *av[])
     //	and regression tests of the simulation.
     //----------------------------------------------------------------------
     BodyStatesRecordingToVtp body_states_recording(sph_system);
+    BodyStatesRecordingToVtp eroded_states_recording(sph_system, "eroded_particles");
     body_states_recording.addToWrite<Real>(soil_block, "Pressure");
     body_states_recording.addToWrite<Real>(soil_block, "Density");
     body_states_recording.addToWrite<Real>(water_block, "Pressure");
@@ -145,6 +146,8 @@ int main(int ac, char *av[])
     body_states_recording.addToWrite<int>(soil_block, "ErosionState");
     body_states_recording.addToWrite<int>(soil_block, "InterfaceIndicator");
     body_states_recording.addToWrite<Vecd>(soil_block, "ErosionStartPosition");
+    eroded_states_recording.addToWrite<int>(soil_block, "ErosionState");
+    eroded_states_recording.addToWrite<Vecd>(soil_block, "ErosionStartPosition");
     RestartIO restart_io(sph_system);
     RegressionTestDynamicTimeWarping<ReducedQuantityRecording<TotalMechanicalEnergy>>
         write_mechanical_energy(soil_block, gravity);
@@ -199,6 +202,7 @@ int main(int ac, char *av[])
     //	First output before the main loop.
     //----------------------------------------------------------------------
     body_states_recording.writeToFile();
+    eroded_states_recording.writeToFile();
     write_mechanical_energy.writeToFile(number_of_iterations);
     //----------------------------------------------------------------------
     //	Main loop starts here.
@@ -269,6 +273,8 @@ int main(int ac, char *av[])
 
                 if (number_of_iterations % observation_sample_interval == 0 && number_of_iterations != sph_system.RestartStep())
                 {
+                    body_states_recording.writeToFile();
+                    eroded_states_recording.writeToFile();
                     write_mechanical_energy.writeToFile(number_of_iterations);
                 }
                 if (number_of_iterations % restart_output_interval == 0)
@@ -289,6 +295,7 @@ int main(int ac, char *av[])
         vertical_stress.exec();
         accumulated_deviatoric_plastic_strain.exec();
         body_states_recording.writeToFile();
+        eroded_states_recording.writeToFile();
         TickCount t3 = TickCount::now();
         interval += t3 - t2;
     }
