@@ -225,6 +225,165 @@ class ErodedSoilPart : public BodyPartByParticle
   protected:
     int *erosion_state_;
 };
+//---------------------------------------------------------------------- 
+//	侵蚀粒子输出（仅输出侵蚀粒子）
+//---------------------------------------------------------------------- 
+class ErodedParticlesRecordingToVtp : public BodyStatesRecordingToVtp
+{
+  public:
+    explicit ErodedParticlesRecordingToVtp(SPHSystem &sph_system)
+        : BodyStatesRecordingToVtp(sph_system) {}
+
+  protected:
+    void writeWithFileName(const std::string &sequence) override
+    {
+        for (SPHBody *body : bodies_)
+        {
+            if (body->checkNewlyUpdated())
+            {
+                BaseParticles &base_particles = body->getBaseParticles();
+                int *erosion_state = base_particles.getVariableDataByName<int>("ErosionState");
+                StdVec<size_t> eroded_indices;
+                size_t total_real_particles = base_particles.TotalRealParticles();
+                for (size_t i = 0; i != total_real_particles; ++i)
+                {
+                    if (erosion_state[i] == 1)
+                        eroded_indices.push_back(i);
+                }
+
+                if (state_recording_)
+                {
+                    std::string filefullpath = io_environment_.OutputFolder() + "/" +
+                                               body->getName() + "_eroded_" + sequence + ".vtp";
+                    if (fs::exists(filefullpath))
+                    {
+                        fs::remove(filefullpath);
+                    }
+                    std::ofstream out_file(filefullpath.c_str(), std::ios::trunc);
+                    out_file << "<?xml version=\"1.0\"?>\n";
+                    out_file << "<VTKFile type=\"PolyData\" version=\"0.1\" byte_order=\"LittleEndian\">\n";
+                    out_file << " <PolyData>\n";
+                    out_file << "  <Piece Name =\"" << body->getName()
+                             << "\" NumberOfPoints=\"" << eroded_indices.size()
+                             << "\" NumberOfVerts=\"" << eroded_indices.size() << "\">\n";
+
+                    out_file << "   <Points>\n";
+                    out_file << "    <DataArray Name=\"Position\" type=\"Float32\"  NumberOfComponents=\"3\" Format=\"ascii\">\n";
+                    out_file << "    ";
+                    for (size_t index_i : eroded_indices)
+                    {
+                        Vec3d particle_position = upgradeToVec3d(base_particles.ParticlePositions()[index_i]);
+                        out_file << particle_position[0] << " " << particle_position[1] << " " << particle_position[2] << " ";
+                    }
+                    out_file << std::endl;
+                    out_file << "    </DataArray>\n";
+                    out_file << "   </Points>\n";
+
+                    out_file << "   <PointData  Vectors=\"vector\">\n";
+                    writeErodedParticlesToVtk(out_file, base_particles, eroded_indices);
+                    out_file << "   </PointData>\n";
+
+                    out_file << "   <Verts>\n";
+                    out_file << "    <DataArray type=\"Int32\"  Name=\"connectivity\"  Format=\"ascii\">\n";
+                    out_file << "    ";
+                    for (size_t i = 0; i != eroded_indices.size(); ++i)
+                    {
+                        out_file << i << " ";
+                    }
+                    out_file << std::endl;
+                    out_file << "    </DataArray>\n";
+                    out_file << "    <DataArray type=\"Int32\"  Name=\"offsets\"  Format=\"ascii\">\n";
+                    out_file << "    ";
+                    for (size_t i = 0; i != eroded_indices.size(); ++i)
+                    {
+                        out_file << i + 1 << " ";
+                    }
+                    out_file << std::endl;
+                    out_file << "    </DataArray>\n";
+                    out_file << "   </Verts>\n";
+
+                    out_file << "  </Piece>\n";
+                    out_file << " </PolyData>\n";
+                    out_file << "</VTKFile>\n";
+                    out_file.close();
+                }
+            }
+            body->setNotNewlyUpdated();
+        }
+    }
+
+    void writeErodedParticlesToVtk(std::ofstream &out_file, BaseParticles &particles,
+                                   const StdVec<size_t> &eroded_indices)
+    {
+        ParticleVariables &variables_to_write = particles.VariablesToWrite();
+        out_file << "    <DataArray Name=\"SortedParticle_ID\" type=\"Int32\" Format=\"ascii\">\n";
+        out_file << "    ";
+        for (size_t i = 0; i != eroded_indices.size(); ++i)
+        {
+            out_file << i << " ";
+        }
+        out_file << std::endl;
+        out_file << "    </DataArray>\n";
+
+        constexpr int type_index_UnsignedInt = DataTypeIndex<UnsignedInt>::value;
+        for (DiscreteVariable<UnsignedInt> *variable : std::get<type_index_UnsignedInt>(variables_to_write))
+        {
+            UnsignedInt *data_field = variable->Data();
+            out_file << "    <DataArray Name=\"" << variable->Name() << "\" type=\"Int32\" Format=\"ascii\">\n";
+            out_file << "    ";
+            for (size_t index_i : eroded_indices)
+            {
+                out_file << std::fixed << std::setprecision(9) << data_field[index_i] << " ";
+            }
+            out_file << std::endl;
+            out_file << "    </DataArray>\n";
+        }
+
+        constexpr int type_index_int = DataTypeIndex<int>::value;
+        for (DiscreteVariable<int> *variable : std::get<type_index_int>(variables_to_write))
+        {
+            int *data_field = variable->Data();
+            out_file << "    <DataArray Name=\"" << variable->Name() << "\" type=\"Int32\" Format=\"ascii\">\n";
+            out_file << "    ";
+            for (size_t index_i : eroded_indices)
+            {
+                out_file << std::fixed << std::setprecision(9) << data_field[index_i] << " ";
+            }
+            out_file << std::endl;
+            out_file << "    </DataArray>\n";
+        }
+
+        constexpr int type_index_Real = DataTypeIndex<Real>::value;
+        for (DiscreteVariable<Real> *variable : std::get<type_index_Real>(variables_to_write))
+        {
+            Real *data_field = variable->Data();
+            out_file << "    <DataArray Name=\"" << variable->Name() << "\" type=\"Float32\" Format=\"ascii\">\n";
+            out_file << "    ";
+            for (size_t index_i : eroded_indices)
+            {
+                out_file << std::fixed << std::setprecision(9) << data_field[index_i] << " ";
+            }
+            out_file << std::endl;
+            out_file << "    </DataArray>\n";
+        }
+
+        constexpr int type_index_Vecd = DataTypeIndex<Vecd>::value;
+        for (DiscreteVariable<Vecd> *variable : std::get<type_index_Vecd>(variables_to_write))
+        {
+            Vecd *data_field = variable->Data();
+            out_file << "    <DataArray Name=\"" << variable->Name()
+                     << "\" type=\"Float32\"  NumberOfComponents=\"3\" Format=\"ascii\">\n";
+            out_file << "    ";
+            for (size_t index_i : eroded_indices)
+            {
+                Vec3d vector_value = upgradeToVec3d(data_field[index_i]);
+                out_file << vector_value[0] << " " << vector_value[1] << " " << vector_value[2] << " ";
+            }
+            out_file << std::endl;
+            out_file << "    </DataArray>\n";
+        }
+    }
+};
 //----------------------------------------------------------------------
 //	将土体表面法向拷贝为 wall 接触所需 NormalDirection
 //----------------------------------------------------------------------

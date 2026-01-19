@@ -133,7 +133,7 @@ int main(int ac, char *av[])
     //	and regression tests of the simulation.
     //----------------------------------------------------------------------
     BodyStatesRecordingToVtp body_states_recording(sph_system);
-    BodyStatesRecordingToVtp eroded_states_recording(sph_system, "eroded_particles");
+    ErodedParticlesRecordingToVtp eroded_states_recording(sph_system);
     body_states_recording.addToWrite<Real>(soil_block, "Pressure");
     body_states_recording.addToWrite<Real>(soil_block, "Density");
     body_states_recording.addToWrite<Real>(water_block, "Pressure");
