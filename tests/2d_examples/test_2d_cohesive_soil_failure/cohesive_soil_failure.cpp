@@ -9,6 +9,7 @@
 //----------------------------------------------------------------------
 int main(int ac, char *av[])
 {
+    bool enable_soil_water_coupling = true;
     //----------------------------------------------------------------------
     //	Build up the environment of a SPHSystem.
     //----------------------------------------------------------------------
@@ -161,7 +162,8 @@ int main(int ac, char *av[])
     free_surface_normal.exec();
     soil_surface_normal_to_wall.exec();
     soil_water_contact.updateConfiguration();
-    erosion_state_update.exec();
+    if (enable_soil_water_coupling)
+        erosion_state_update.exec();
     sync_soil_wall_proxy.exec();
     non_eroded_soil.updateTags();
     non_eroded_surface.updateTags();
@@ -214,7 +216,9 @@ int main(int ac, char *av[])
             free_surface_normal.exec();
             soil_surface_normal_to_wall.exec();
             transport_velocity_correction.exec();
-            soil_force_from_water.exec();
+            soil_water_contact.updateConfiguration();
+            if (enable_soil_water_coupling)
+                soil_force_from_water.exec();
             Real dt_s = soil_acoustic_time_step.exec();
             Real Dt_f = water_advection_time_step.exec();
             Real dt_f = water_acoustic_time_step.exec();
@@ -222,8 +226,11 @@ int main(int ac, char *av[])
             stress_diffusion.exec();
             granular_stress_relaxation.exec(dt);
             granular_density_relaxation.exec(dt);
-            erosion_state_update.exec();
-            eroded_soil_velocity_relaxation.exec();
+            if (enable_soil_water_coupling)
+            {
+                erosion_state_update.exec();
+                eroded_soil_velocity_relaxation.exec();
+            }
             sync_soil_wall_proxy.exec();
             non_eroded_soil.updateTags();
             non_eroded_surface.updateTags();
@@ -236,13 +243,14 @@ int main(int ac, char *av[])
             if (eroded_soil.SizeOfLoopRange() > 0)
                 soil_eroded_contact.updateConfiguration();
             water_density_by_summation.exec();
-            if (eroded_soil.SizeOfLoopRange() > 0)
+            if (enable_soil_water_coupling && eroded_soil.SizeOfLoopRange() > 0)
                 water_force_from_soil.exec();
             water_viscous_force.exec();
             water_pressure_relaxation.exec(dt);
             viscous_force_on_proxy.exec();
             pressure_force_on_proxy.exec();
-            soil_force_from_proxy.exec();
+            if (enable_soil_water_coupling)
+                soil_force_from_proxy.exec();
             water_density_relaxation.exec(dt);
             integration_time += dt;
             physical_time += dt;

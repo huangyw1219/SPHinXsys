@@ -307,10 +307,10 @@ class SyncSoilWallProxy : public LocalDynamics
         wall_pos_[index_i] = soil_pos_[index_i];
         wall_vel_[index_i] = soil_vel_[index_i];
         wall_acc_[index_i] = Vecd::Zero();
-        wall_vol_[index_i] = soil_vol_[index_i];
-        wall_normal_[index_i] = soil_normal_[index_i];
-        wall_surface_normal_[index_i] = soil_surface_normal_[index_i];
-        wall_indicator_[index_i] = soil_indicator_[index_i];
+        wall_vol_[index_i] = soil_erosion_state_[index_i] == 0 ? soil_vol_[index_i] : 0.0;
+        wall_normal_[index_i] = soil_erosion_state_[index_i] == 0 ? soil_normal_[index_i] : Vecd::Zero();
+        wall_surface_normal_[index_i] = soil_erosion_state_[index_i] == 0 ? soil_surface_normal_[index_i] : Vecd::Zero();
+        wall_indicator_[index_i] = soil_erosion_state_[index_i] == 0 ? soil_indicator_[index_i] : 0;
         wall_erosion_state_[index_i] = soil_erosion_state_[index_i];
     }
 
