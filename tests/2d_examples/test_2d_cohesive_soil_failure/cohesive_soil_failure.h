@@ -95,6 +95,17 @@ class WaterBlock : public MultiPolygonShape
     }
 };
 //---------------------------------------------------------------------- 
+//	侵蚀粒子相（与土体几何一致）
+//---------------------------------------------------------------------- 
+class ErodedSoilBlock : public MultiPolygonShape
+{
+  public:
+    explicit ErodedSoilBlock(const std::string &shape_name) : MultiPolygonShape(shape_name)
+    {
+        multi_polygon_.addAPolygon(soil_shape, ShapeBooleanOps::add);
+    }
+};
+//---------------------------------------------------------------------- 
 //	土体 wall 代理体粒子生成：与土体粒子保持一一对应
 //----------------------------------------------------------------------
 class SoilWallProxyParticles;
@@ -224,6 +235,60 @@ class ErodedSoilPart : public BodyPartByParticle
 
   protected:
     int *erosion_state_;
+};
+//---------------------------------------------------------------------- 
+//	侵蚀粒子同步：soil <-> eroded body
+//---------------------------------------------------------------------- 
+class ErodedParticlesSync : public LocalDynamics
+{
+  public:
+    ErodedParticlesSync(RealBody &soil_body, RealBody &eroded_body)
+        : LocalDynamics(soil_body),
+          soil_particles_(soil_body.getBaseParticles()),
+          eroded_particles_(eroded_body.getBaseParticles()),
+          soil_pos_(soil_particles_.getVariableDataByName<Vecd>("Position")),
+          soil_vel_(soil_particles_.registerStateVariableData<Vecd>("Velocity")),
+          soil_erosion_state_(soil_particles_.registerStateVariableData<int>("ErosionState")),
+          eroded_pos_(eroded_particles_.getVariableDataByName<Vecd>("Position")),
+          eroded_vel_(eroded_particles_.registerStateVariableData<Vecd>("Velocity")),
+          eroded_erosion_state_(eroded_particles_.registerStateVariableData<int>("ErosionState")) {}
+
+    void update(size_t index_i, Real dt)
+    {
+        if (soil_erosion_state_[index_i] == 1)
+        {
+            eroded_pos_[index_i] = soil_pos_[index_i];
+            eroded_vel_[index_i] = soil_vel_[index_i];
+            eroded_erosion_state_[index_i] = 1;
+        }
+        else
+        {
+            eroded_erosion_state_[index_i] = 0;
+        }
+    }
+
+    void syncBack()
+    {
+        size_t total_real_particles = eroded_particles_.TotalRealParticles();
+        for (size_t i = 0; i != total_real_particles; ++i)
+        {
+            if (eroded_erosion_state_[i] == 1)
+            {
+                soil_pos_[i] = eroded_pos_[i];
+                soil_vel_[i] = eroded_vel_[i];
+            }
+        }
+    }
+
+  protected:
+    BaseParticles &soil_particles_;
+    BaseParticles &eroded_particles_;
+    Vecd *soil_pos_;
+    Vecd *soil_vel_;
+    int *soil_erosion_state_;
+    Vecd *eroded_pos_;
+    Vecd *eroded_vel_;
+    int *eroded_erosion_state_;
 };
 //---------------------------------------------------------------------- 
 //	侵蚀粒子输出（仅输出侵蚀粒子）
@@ -842,6 +907,160 @@ class ErodedSoilVelocityRelaxation : public LocalDynamics, public DataDelegateCo
     int *erosion_state_;
     StdVec<Vecd *> contact_vel_;
     StdVec<Real *> contact_Vol_;
+};
+//---------------------------------------------------------------------- 
+//	侵蚀粒子随流移动（独立更新）
+//---------------------------------------------------------------------- 
+class ErodedParticlesAdvection : public LocalDynamics
+{
+  public:
+    explicit ErodedParticlesAdvection(RealBody &eroded_body)
+        : LocalDynamics(eroded_body),
+          pos_(particles_->getVariableDataByName<Vecd>("Position")),
+          vel_(particles_->registerStateVariableData<Vecd>("Velocity")),
+          erosion_state_(particles_->registerStateVariableData<int>("ErosionState")) {}
+
+    void update(size_t index_i, Real dt)
+    {
+        if (erosion_state_[index_i] == 1)
+        {
+            pos_[index_i] += vel_[index_i] * dt;
+        }
+    }
+
+  protected:
+    Vecd *pos_;
+    Vecd *vel_;
+    int *erosion_state_;
+};
+//---------------------------------------------------------------------- 
+//	侵蚀相动力学：仅对侵蚀粒子执行
+//---------------------------------------------------------------------- 
+class ErodedDensitySummation : public fluid_dynamics::DensitySummation<Inner<>>
+{
+  public:
+    explicit ErodedDensitySummation(BaseInnerRelation &inner_relation)
+        : fluid_dynamics::DensitySummation<Inner<>>(inner_relation),
+          erosion_state_(this->particles_->registerStateVariableData<int>("ErosionState")) {}
+
+    void interaction(size_t index_i, Real dt = 0.0)
+    {
+        if (erosion_state_[index_i] == 1)
+            fluid_dynamics::DensitySummation<Inner<>>::interaction(index_i, dt);
+    }
+
+  protected:
+    int *erosion_state_;
+};
+
+class ErodedViscousForce : public fluid_dynamics::ViscousForce<Inner<>>
+{
+  public:
+    explicit ErodedViscousForce(BaseInnerRelation &inner_relation)
+        : fluid_dynamics::ViscousForce<Inner<>>(inner_relation),
+          erosion_state_(this->particles_->registerStateVariableData<int>("ErosionState")) {}
+
+    void interaction(size_t index_i, Real dt = 0.0)
+    {
+        if (erosion_state_[index_i] == 1)
+            fluid_dynamics::ViscousForce<Inner<>>::interaction(index_i, dt);
+    }
+
+  protected:
+    int *erosion_state_;
+};
+
+class ErodedIntegration1stHalf : public fluid_dynamics::Integration1stHalf<Inner<>>
+{
+  public:
+    explicit ErodedIntegration1stHalf(BaseInnerRelation &inner_relation)
+        : fluid_dynamics::Integration1stHalf<Inner<>>(inner_relation),
+          erosion_state_(this->particles_->registerStateVariableData<int>("ErosionState")) {}
+
+    void interaction(size_t index_i, Real dt = 0.0)
+    {
+        if (erosion_state_[index_i] == 1)
+            fluid_dynamics::Integration1stHalf<Inner<>>::interaction(index_i, dt);
+    }
+
+    void update(size_t index_i, Real dt = 0.0)
+    {
+        if (erosion_state_[index_i] == 1)
+            fluid_dynamics::Integration1stHalf<Inner<>>::update(index_i, dt);
+    }
+
+  protected:
+    int *erosion_state_;
+};
+
+class ErodedIntegration2ndHalf : public fluid_dynamics::Integration2ndHalf<Inner<>>
+{
+  public:
+    explicit ErodedIntegration2ndHalf(BaseInnerRelation &inner_relation)
+        : fluid_dynamics::Integration2ndHalf<Inner<>>(inner_relation),
+          erosion_state_(this->particles_->registerStateVariableData<int>("ErosionState")) {}
+
+    void interaction(size_t index_i, Real dt = 0.0)
+    {
+        if (erosion_state_[index_i] == 1)
+            fluid_dynamics::Integration2ndHalf<Inner<>>::interaction(index_i, dt);
+    }
+
+    void update(size_t index_i, Real dt = 0.0)
+    {
+        if (erosion_state_[index_i] == 1)
+            fluid_dynamics::Integration2ndHalf<Inner<>>::update(index_i, dt);
+    }
+
+  protected:
+    int *erosion_state_;
+};
+//---------------------------------------------------------------------- 
+//	相对速度反力（防穿透）
+//---------------------------------------------------------------------- 
+class WallRepulsionFromRelativeVelocity : public LocalDynamics, public DataDelegateContact
+{
+  public:
+    WallRepulsionFromRelativeVelocity(BaseContactRelation &contact_relation, Real repulsion_coeff)
+        : LocalDynamics(contact_relation.getSPHBody()), DataDelegateContact(contact_relation),
+          repulsion_coeff_(repulsion_coeff),
+          vel_(particles_->registerStateVariableData<Vecd>("Velocity")),
+          force_prior_(particles_->registerStateVariableData<Vecd>("ForcePrior"))
+    {
+        for (size_t k = 0; k != contact_particles_.size(); ++k)
+        {
+            wall_normal_.push_back(contact_particles_[k]->registerStateVariableData<Vecd>("NormalDirection"));
+        }
+    }
+
+    void interaction(size_t index_i, Real dt = 0.0)
+    {
+        Vecd repulsion = Vecd::Zero();
+        for (size_t k = 0; k < contact_configuration_.size(); ++k)
+        {
+            Vecd *wall_normal_k = wall_normal_[k];
+            Neighborhood &contact_neighborhood = (*contact_configuration_[k])[index_i];
+            for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
+            {
+                size_t index_j = contact_neighborhood.j_[n];
+                Vecd n_w = wall_normal_k[index_j];
+                if (n_w.norm() < TinyReal)
+                    continue;
+                Real v_rel_n = vel_[index_i].dot(n_w);
+                if (v_rel_n < 0.0)
+                {
+                    repulsion -= repulsion_coeff_ * v_rel_n * n_w;
+                }
+            }
+        }
+        force_prior_[index_i] += repulsion;
+    }
+
+  protected:
+    Real repulsion_coeff_;
+    Vecd *vel_;
+    Vecd *force_prior_;
+    StdVec<Vecd *> wall_normal_;
 };
 //---------------------------------------------------------------------- 
 //	非侵蚀土体的内部力学：跳过侵蚀粒子
