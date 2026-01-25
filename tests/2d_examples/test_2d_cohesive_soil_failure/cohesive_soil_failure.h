@@ -953,63 +953,63 @@ class ErodedDensitySummation : public fluid_dynamics::DensitySummation<Inner<>>
     int *erosion_state_;
 };
 
-class ErodedViscousForce : public fluid_dynamics::ViscousForce<Inner<>>
+class ErodedViscousForce : public fluid_dynamics::ViscousForceInner
 {
   public:
     explicit ErodedViscousForce(BaseInnerRelation &inner_relation)
-        : fluid_dynamics::ViscousForce<Inner<>>(inner_relation),
+        : fluid_dynamics::ViscousForceInner(inner_relation),
           erosion_state_(this->particles_->registerStateVariableData<int>("ErosionState")) {}
 
     void interaction(size_t index_i, Real dt = 0.0)
     {
         if (erosion_state_[index_i] == 1)
-            fluid_dynamics::ViscousForce<Inner<>>::interaction(index_i, dt);
+            fluid_dynamics::ViscousForceInner::interaction(index_i, dt);
     }
 
   protected:
     int *erosion_state_;
 };
 
-class ErodedIntegration1stHalf : public fluid_dynamics::Integration1stHalf<Inner<>>
+class ErodedIntegration1stHalf : public fluid_dynamics::Integration1stHalfInnerRiemann
 {
   public:
     explicit ErodedIntegration1stHalf(BaseInnerRelation &inner_relation)
-        : fluid_dynamics::Integration1stHalf<Inner<>>(inner_relation),
+        : fluid_dynamics::Integration1stHalfInnerRiemann(inner_relation),
           erosion_state_(this->particles_->registerStateVariableData<int>("ErosionState")) {}
 
     void interaction(size_t index_i, Real dt = 0.0)
     {
         if (erosion_state_[index_i] == 1)
-            fluid_dynamics::Integration1stHalf<Inner<>>::interaction(index_i, dt);
+            fluid_dynamics::Integration1stHalfInnerRiemann::interaction(index_i, dt);
     }
 
     void update(size_t index_i, Real dt = 0.0)
     {
         if (erosion_state_[index_i] == 1)
-            fluid_dynamics::Integration1stHalf<Inner<>>::update(index_i, dt);
+            fluid_dynamics::Integration1stHalfInnerRiemann::update(index_i, dt);
     }
 
   protected:
     int *erosion_state_;
 };
 
-class ErodedIntegration2ndHalf : public fluid_dynamics::Integration2ndHalf<Inner<>>
+class ErodedIntegration2ndHalf : public fluid_dynamics::Integration2ndHalfInnerRiemann
 {
   public:
     explicit ErodedIntegration2ndHalf(BaseInnerRelation &inner_relation)
-        : fluid_dynamics::Integration2ndHalf<Inner<>>(inner_relation),
+        : fluid_dynamics::Integration2ndHalfInnerRiemann(inner_relation),
           erosion_state_(this->particles_->registerStateVariableData<int>("ErosionState")) {}
 
     void interaction(size_t index_i, Real dt = 0.0)
     {
         if (erosion_state_[index_i] == 1)
-            fluid_dynamics::Integration2ndHalf<Inner<>>::interaction(index_i, dt);
+            fluid_dynamics::Integration2ndHalfInnerRiemann::interaction(index_i, dt);
     }
 
     void update(size_t index_i, Real dt = 0.0)
     {
         if (erosion_state_[index_i] == 1)
-            fluid_dynamics::Integration2ndHalf<Inner<>>::update(index_i, dt);
+            fluid_dynamics::Integration2ndHalfInnerRiemann::update(index_i, dt);
     }
 
   protected:
