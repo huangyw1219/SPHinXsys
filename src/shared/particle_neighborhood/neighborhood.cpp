@@ -168,10 +168,17 @@ NeighborBuilderSurfaceContact::NeighborBuilderSurfaceContact(SPHBody &body, SPHB
 //=================================================================================================//
 NeighborBuilderContactBodyPart::NeighborBuilderContactBodyPart(SPHBody &body, BodyPart &contact_body_part)
     : NeighborBuilder(NeighborBuilder::chooseKernel(body, contact_body_part.getSPHBody())),
-      part_indicator_(body.getBaseParticles().registerStateVariableData<int>("BodyPartByParticleIndicator"))
+      part_indicator_(contact_body_part.getSPHBody().getBaseParticles().registerStateVariableData<int>("BodyPartByParticleIndicator"))
 {
     BodyPartByParticle &contact_body_part_by_particle = DynamicCast<BodyPartByParticle>(this, contact_body_part);
     IndexVector part_particles = contact_body_part_by_particle.body_part_particles_;
+    BaseParticles &contact_base_particles = contact_body_part.getSPHBody().getBaseParticles();
+    size_t total_real_particles = contact_base_particles.TotalRealParticles();
+
+    for (size_t i = 0; i != total_real_particles; ++i)
+    {
+        part_indicator_[i] = 0;
+    }
 
     for (size_t i = 0; i != part_particles.size(); ++i)
     {

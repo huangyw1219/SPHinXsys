@@ -9,6 +9,8 @@
 //----------------------------------------------------------------------
 int main(int ac, char *av[])
 {
+    bool enable_non_eroded_soil_water_coupling = false;
+    bool enable_eroded_soil_water_coupling = true;
     //----------------------------------------------------------------------
     //	Build up the environment of a SPHSystem.
     //----------------------------------------------------------------------
@@ -18,12 +20,76 @@ int main(int ac, char *av[])
     //	Creating bodies with corresponding materials and particles.
     //----------------------------------------------------------------------
     RealBody soil_block(sph_system, makeShared<Soil>("GranularBody"));
-    soil_block.defineMaterial<PlasticContinuum>(rho0_s, c_s, Youngs_modulus, poisson, friction_angle, cohesion);
+    soil_block.defineMaterial<DpHbpContinuum>(rho0_s, c_s, Youngs_modulus, poisson, friction_angle, cohesion,
+                                              hbp_yield_stress, hbp_consistency, hbp_flow_index, hbp_regularization);
     soil_block.generateParticles<BaseParticles, Lattice>();
+    soil_block.getBaseParticles().registerStateVariableData<Vecd>("Velocity");
+    soil_block.getBaseParticles().addEvolvingVariable<Vecd>("Velocity");
+    soil_block.getBaseParticles().registerStateVariableData<Real>("Pressure");
+    soil_block.getBaseParticles().addEvolvingVariable<Real>("Pressure");
+    soil_block.getBaseParticles().registerStateVariableData<Vecd>("Force");
+    soil_block.getBaseParticles().addEvolvingVariable<Vecd>("Force");
+    soil_block.getBaseParticles().registerStateVariableData<Vecd>("ForcePrior");
+    soil_block.getBaseParticles().addEvolvingVariable<Vecd>("ForcePrior");
+    soil_block.getBaseParticles().registerStateVariableData<Real>("DensityChangeRate");
+    soil_block.getBaseParticles().addEvolvingVariable<Real>("DensityChangeRate");
+    soil_block.getBaseParticles().registerStateVariableData<Real>("Density");
+    soil_block.getBaseParticles().addEvolvingVariable<Real>("Density");
+    int *soil_erosion_state = soil_block.getBaseParticles().registerStateVariableData<int>("ErosionState");
+    soil_block.getBaseParticles().addEvolvingVariable<int>("ErosionState");
+    for (UnsignedInt i = 0; i < soil_block.getBaseParticles().TotalRealParticles(); ++i)
+        soil_erosion_state[i] = 0;
+
+    FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBody"));
+    water_block.defineClosure<WeaklyCompressibleFluid, Viscosity>(ConstructArgs(rho0_f, c_f), mu_f);
+    water_block.generateParticles<BaseParticles, Lattice>();
+    water_block.getBaseParticles().registerStateVariableData<Vecd>("Velocity");
+    water_block.getBaseParticles().addEvolvingVariable<Vecd>("Velocity");
+    water_block.getBaseParticles().registerStateVariableData<Real>("Pressure");
+    water_block.getBaseParticles().addEvolvingVariable<Real>("Pressure");
+    water_block.getBaseParticles().registerStateVariableData<Vecd>("Force");
+    water_block.getBaseParticles().addEvolvingVariable<Vecd>("Force");
+    water_block.getBaseParticles().registerStateVariableData<Vecd>("ForcePrior");
+    water_block.getBaseParticles().addEvolvingVariable<Vecd>("ForcePrior");
+    water_block.getBaseParticles().registerStateVariableData<Vecd>("Acceleration");
+    water_block.getBaseParticles().addEvolvingVariable<Vecd>("Acceleration");
+    water_block.getBaseParticles().registerStateVariableData<Real>("DensityChangeRate");
+    water_block.getBaseParticles().addEvolvingVariable<Real>("DensityChangeRate");
+    water_block.getBaseParticles().registerStateVariableData<Real>("Density");
+    water_block.getBaseParticles().addEvolvingVariable<Real>("Density");
+    int *water_erosion_state = water_block.getBaseParticles().registerStateVariableData<int>("ErosionState");
+    water_block.getBaseParticles().addEvolvingVariable<int>("ErosionState");
+    for (UnsignedInt i = 0; i < water_block.getBaseParticles().TotalRealParticles(); ++i)
+        water_erosion_state[i] = 0;
+
+    FluidBody eroded_body(sph_system, makeShared<ErodedSoilBlock>("ErodedSoilBody"));
+    eroded_body.defineClosure<WeaklyCompressibleFluid, Viscosity>(ConstructArgs(rho0_f, c_f), mu_f);
+    eroded_body.generateParticles<BaseParticles, Lattice>();
+    eroded_body.getBaseParticles().registerStateVariableData<Vecd>("Velocity");
+    eroded_body.getBaseParticles().addEvolvingVariable<Vecd>("Velocity");
+    eroded_body.getBaseParticles().registerStateVariableData<Vecd>("Acceleration");
+    eroded_body.getBaseParticles().addEvolvingVariable<Vecd>("Acceleration");
+    eroded_body.getBaseParticles().registerStateVariableData<Real>("Pressure");
+    eroded_body.getBaseParticles().addEvolvingVariable<Real>("Pressure");
+    eroded_body.getBaseParticles().registerStateVariableData<Real>("Density");
+    eroded_body.getBaseParticles().addEvolvingVariable<Real>("Density");
+    eroded_body.getBaseParticles().registerStateVariableData<Real>("DensityChangeRate");
+    eroded_body.getBaseParticles().addEvolvingVariable<Real>("DensityChangeRate");
+    eroded_body.getBaseParticles().registerStateVariableData<Vecd>("Force");
+    eroded_body.getBaseParticles().addEvolvingVariable<Vecd>("Force");
+    eroded_body.getBaseParticles().registerStateVariableData<Vecd>("ForcePrior");
+    eroded_body.getBaseParticles().addEvolvingVariable<Vecd>("ForcePrior");
+    int *eroded_erosion_state = eroded_body.getBaseParticles().registerStateVariableData<int>("ErosionState");
+    eroded_body.getBaseParticles().addEvolvingVariable<int>("ErosionState");
+    for (UnsignedInt i = 0; i < eroded_body.getBaseParticles().TotalRealParticles(); ++i)
+        eroded_erosion_state[i] = 0;
 
     SolidBody wall_boundary(sph_system, makeShared<WallBoundary>("WallBoundary"));
     wall_boundary.defineMaterial<Solid>();
     wall_boundary.generateParticles<BaseParticles, Lattice>();
+    SolidBody soil_wall_proxy(sph_system, makeShared<Soil>("SoilWallProxy"));
+    soil_wall_proxy.defineMaterial<Solid>();
+    soil_wall_proxy.generateParticles<BaseParticles, SoilWallProxyParticles>(soil_block.getBaseParticles());
     //----------------------------------------------------------------------
     //	Define body relation map.
     //	The contact map gives the topological connections between the bodies.
@@ -31,40 +97,94 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     InnerRelation soil_block_inner(soil_block);
     ContactRelation soil_block_contact(soil_block, {&wall_boundary});
+    ContactRelation soil_water_contact(soil_block, {&water_block});
+    NonErodedSoilPart non_eroded_soil(soil_block);
+    NonErodedSoilSurfacePart non_eroded_surface(soil_block);
+    ErodedSoilPart eroded_soil(soil_block);
+    NonErodedSoilSurfacePart proxy_non_eroded_surface(soil_wall_proxy);
+    InnerRelation water_block_inner(water_block);
+    ContactRelation water_wall_contact(water_block, {&wall_boundary});
+    ContactRelationToBodyPart water_non_eroded_wall_contact(water_block, BodyPartVector{&proxy_non_eroded_surface});
+    ContactRelationToBodyPart water_eroded_contact(water_block, BodyPartVector{&eroded_soil});
+    InnerRelation eroded_body_inner(eroded_body);
+    ContactRelation eroded_water_contact(eroded_body, {&water_block});
+    ContactRelationToBodyPart eroded_wall_contact(eroded_body, BodyPartVector{&non_eroded_surface});
+    ContactRelation soil_proxy_contact(soil_wall_proxy, {&water_block});
+    ContactRelationToBodyPart soil_eroded_contact(soil_block, BodyPartVector{&eroded_soil});
     //----------------------------------------------------------------------
     // Combined relations built from basic relations
     // which is only used for update configuration.
     //----------------------------------------------------------------------
     ComplexRelation soil_block_complex(soil_block_inner, soil_block_contact);
+    ComplexRelation water_block_complex(water_block_inner, {&water_wall_contact, &water_non_eroded_wall_contact});
     //----------------------------------------------------------------------
     //	Define the main numerical methods used in the simulation.
     //	Note that there may be data dependence on the constructors of these methods.
     //----------------------------------------------------------------------
     Gravity gravity(Vecd(0.0, -gravity_g));
+    Real wall_repulsion_coeff = 1.0;
     SimpleDynamics<GravityForce<Gravity>> constant_gravity(soil_block, gravity);
+    SimpleDynamics<GravityForce<Gravity>> water_gravity(water_block, gravity);
     SimpleDynamics<NormalDirectionFromBodyShape> wall_boundary_normal_direction(wall_boundary);
     SimpleDynamics<SoilInitialCondition> soil_initial_condition(soil_block);
     InteractionWithUpdate<LinearGradientCorrectionMatrixComplex> correction_matrix(soil_block_inner, soil_block_contact);
-    Dynamics1Level<continuum_dynamics::PlasticIntegration1stHalfWithWallRiemann> granular_stress_relaxation(soil_block_inner, soil_block_contact);
-    Dynamics1Level<continuum_dynamics::PlasticIntegration2ndHalfWithWallRiemann> granular_density_relaxation(soil_block_inner, soil_block_contact);
+    Dynamics1Level<NonErodedPlasticIntegration1stHalfWithWallRiemann> granular_stress_relaxation(soil_block_inner, soil_block_contact);
+    Dynamics1Level<NonErodedPlasticIntegration2ndHalfSwitchableWithWallRiemann> granular_density_relaxation(soil_block_inner, soil_block_contact);
     InteractionWithUpdate<fluid_dynamics::DensitySummationComplexFreeSurface> soil_density_by_summation(soil_block_inner, soil_block_contact);
-    InteractionDynamics<continuum_dynamics::StressDiffusion> stress_diffusion(soil_block_inner);
+    InteractionDynamics<NonErodedStressDiffusion> stress_diffusion(soil_block_inner);
     InteractionWithUpdate<FreeSurfaceIndicationComplex> surface_indicator(soil_block_inner, soil_block_contact);
+    SimpleDynamics<NormalDirectionFromBodyShape> soil_surface_normal_to_wall(soil_block);
+    SimpleDynamics<SyncSoilWallProxy> sync_soil_wall_proxy(soil_block, soil_wall_proxy);
+    SimpleDynamics<ErosionStateByVelocity> erosion_state_update(soil_block_inner, soil_water_contact);
+    SimpleDynamics<ErodedSoilVelocityRelaxation> eroded_soil_velocity_relaxation(soil_water_contact);
+    SimpleDynamics<ErodedParticlesSync> eroded_particles_sync(soil_block, eroded_body);
+    SimpleDynamics<ErodedParticlesAdvection> eroded_advection(eroded_body);
+    SimpleDynamics<SoilForceFromWater> soil_force_from_water(soil_eroded_contact);
+    SimpleDynamics<SoilForceFromProxyFluid> soil_force_from_proxy(soil_block, soil_wall_proxy);
     InteractionWithUpdate<TransportVelocityCorrectionComplex<AllParticles>> transport_velocity_correction(soil_block_inner, soil_block_contact);
     InteractionWithUpdate<FreeSurfaceNormalComplex> free_surface_normal(soil_block_inner, soil_block_contact);
     ReduceDynamics<fluid_dynamics::AcousticTimeStep> soil_acoustic_time_step(soil_block, 0.4);
+    Dynamics1Level<ComplexInteraction<fluid_dynamics::Integration1stHalf<Inner<>, Contact<Wall>, Contact<Wall>>, AcousticRiemannSolver, NoKernelCorrection>>
+        water_pressure_relaxation(water_block_inner, water_wall_contact, water_non_eroded_wall_contact);
+    Dynamics1Level<ComplexInteraction<fluid_dynamics::Integration2ndHalf<Inner<>, Contact<Wall>, Contact<Wall>>, AcousticRiemannSolver>>
+        water_density_relaxation(water_block_inner, water_wall_contact, water_non_eroded_wall_contact);
+    InteractionWithUpdate<fluid_dynamics::BaseDensitySummationComplex<Inner<FreeSurface>, Contact<>, Contact<>>>
+        water_density_by_summation(water_block_inner, water_wall_contact, water_non_eroded_wall_contact);
+    InteractionWithUpdate<ComplexInteraction<fluid_dynamics::ViscousForce<Inner<>, Contact<Wall>, Contact<Wall>>,
+                                             fluid_dynamics::FixedViscosity, NoKernelCorrection>>
+        water_viscous_force(water_block_inner, water_wall_contact, water_non_eroded_wall_contact);
+    InteractionWithUpdate<ErodedViscousForce> eroded_viscous_force(eroded_body_inner);
+    Dynamics1Level<ErodedIntegration1stHalf> eroded_pressure_relaxation(eroded_body_inner);
+    Dynamics1Level<ErodedIntegration2ndHalf> eroded_density_relaxation(eroded_body_inner);
+    InteractionWithUpdate<ErodedDensitySummation> eroded_density_by_summation(eroded_body_inner);
+    InteractionDynamics<WallRepulsionFromRelativeVelocity> water_wall_repulsion(water_non_eroded_wall_contact, wall_repulsion_coeff);
+    InteractionDynamics<WallRepulsionFromRelativeVelocity> eroded_wall_repulsion(eroded_wall_contact, wall_repulsion_coeff);
+    SimpleDynamics<WaterForceFromSoil> water_force_from_soil(water_eroded_contact);
+    InteractionWithUpdate<solid_dynamics::ViscousForceFromFluid> viscous_force_on_proxy(soil_proxy_contact);
+    InteractionWithUpdate<solid_dynamics::PressureForceFromFluid<decltype(water_density_relaxation)>> pressure_force_on_proxy(soil_proxy_contact);
+    ReduceDynamics<fluid_dynamics::AdvectionViscousTimeStep> water_advection_time_step(water_block, U_f, 0.1);
+    ReduceDynamics<fluid_dynamics::AcousticTimeStep> water_acoustic_time_step(water_block);
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations, observations
     //	and regression tests of the simulation.
     //----------------------------------------------------------------------
     BodyStatesRecordingToVtp body_states_recording(sph_system);
+    ErodedParticlesRecordingToVtp eroded_states_recording(sph_system);
     body_states_recording.addToWrite<Real>(soil_block, "Pressure");
     body_states_recording.addToWrite<Real>(soil_block, "Density");
+    body_states_recording.addToWrite<Real>(water_block, "Pressure");
+    body_states_recording.addToWrite<Real>(water_block, "Density");
+    body_states_recording.addToWrite<Real>(eroded_body, "Density");
     SimpleDynamics<continuum_dynamics::VerticalStress> vertical_stress(soil_block);
     body_states_recording.addToWrite<Real>(soil_block, "VerticalStress");
     SimpleDynamics<continuum_dynamics::AccDeviatoricPlasticStrain> accumulated_deviatoric_plastic_strain(soil_block);
     body_states_recording.addToWrite<Real>(soil_block, "AccDeviatoricPlasticStrain");
     body_states_recording.addToWrite<int>(soil_block, "Indicator");
+    body_states_recording.addToWrite<int>(soil_block, "ErosionState");
+    body_states_recording.addToWrite<int>(soil_block, "InterfaceIndicator");
+    body_states_recording.addToWrite<Vecd>(soil_block, "ErosionStartPosition");
+    eroded_states_recording.addToWrite<int>(soil_block, "ErosionState");
+    eroded_states_recording.addToWrite<Vecd>(soil_block, "ErosionStartPosition");
     RestartIO restart_io(sph_system);
     RegressionTestDynamicTimeWarping<ReducedQuantityRecording<TotalMechanicalEnergy>>
         write_mechanical_energy(soil_block, gravity);
@@ -76,8 +196,29 @@ int main(int ac, char *av[])
     sph_system.initializeSystemConfigurations();
     wall_boundary_normal_direction.exec();
     constant_gravity.exec();
+    water_gravity.exec();
     soil_initial_condition.exec();
     correction_matrix.exec();
+    surface_indicator.exec();
+    free_surface_normal.exec();
+    soil_surface_normal_to_wall.exec();
+    soil_water_contact.updateConfiguration();
+    if (enable_eroded_soil_water_coupling)
+        erosion_state_update.exec();
+    sync_soil_wall_proxy.exec();
+    non_eroded_soil.updateTags();
+    non_eroded_surface.updateTags();
+    eroded_soil.updateTags();
+    proxy_non_eroded_surface.updateTags();
+    water_non_eroded_wall_contact.updateConfiguration();
+    if (eroded_soil.SizeOfLoopRange() > 0)
+        water_eroded_contact.updateConfiguration();
+    eroded_body_inner.updateConfiguration();
+    eroded_water_contact.updateConfiguration();
+    eroded_wall_contact.updateConfiguration();
+    soil_proxy_contact.updateConfiguration();
+    if (eroded_soil.SizeOfLoopRange() > 0)
+        soil_eroded_contact.updateConfiguration();
     //----------------------------------------------------------------------
     //	Setup for time-stepping control
     //----------------------------------------------------------------------
@@ -86,8 +227,8 @@ int main(int ac, char *av[])
     int screen_output_interval = 500;
     int observation_sample_interval = screen_output_interval * 2;
     int restart_output_interval = screen_output_interval * 10;
-    Real End_Time = 2.0;         /**< End time. */
-    Real D_Time = End_Time / 50; /**< Time stamps for output of body states. */
+    Real End_Time = 1.0;         /**< 计算时间 (s)，对齐论文 1s 的侵蚀过程。 */
+    Real D_Time = End_Time / 50; /**< 输出时间间隔。 */
     //----------------------------------------------------------------------
     //	Statistics for CPU time
     //----------------------------------------------------------------------
@@ -101,6 +242,7 @@ int main(int ac, char *av[])
     //	First output before the main loop.
     //----------------------------------------------------------------------
     body_states_recording.writeToFile();
+    eroded_states_recording.writeToFile();
     write_mechanical_energy.writeToFile(number_of_iterations);
     //----------------------------------------------------------------------
     //	Main loop starts here.
@@ -117,11 +259,56 @@ int main(int ac, char *av[])
             soil_density_by_summation.exec();
             surface_indicator.exec();
             free_surface_normal.exec();
+            soil_surface_normal_to_wall.exec();
             transport_velocity_correction.exec();
-            Real dt = soil_acoustic_time_step.exec();
+            if (enable_eroded_soil_water_coupling)
+            {
+                soil_water_contact.updateConfiguration();
+                soil_force_from_water.exec();
+            }
+            Real dt_s = soil_acoustic_time_step.exec();
+            Real Dt_f = water_advection_time_step.exec();
+            Real dt_f = water_acoustic_time_step.exec();
+            Real dt = SMIN(dt_s, SMIN(Dt_f, dt_f));
+            eroded_particles_sync.exec();
+            eroded_density_by_summation.exec();
+            eroded_viscous_force.exec();
+            eroded_pressure_relaxation.exec(dt);
+            eroded_density_relaxation.exec(dt);
+            eroded_wall_repulsion.exec();
+            eroded_advection.exec(dt);
+            eroded_particles_sync.syncBack();
             stress_diffusion.exec();
             granular_stress_relaxation.exec(dt);
             granular_density_relaxation.exec(dt);
+            if (enable_eroded_soil_water_coupling)
+            {
+                erosion_state_update.exec();
+                eroded_soil_velocity_relaxation.exec();
+            }
+            sync_soil_wall_proxy.exec();
+            non_eroded_soil.updateTags();
+            non_eroded_surface.updateTags();
+            eroded_soil.updateTags();
+            proxy_non_eroded_surface.updateTags();
+            water_non_eroded_wall_contact.updateConfiguration();
+            if (eroded_soil.SizeOfLoopRange() > 0)
+                water_eroded_contact.updateConfiguration();
+            eroded_wall_contact.updateConfiguration();
+            soil_proxy_contact.updateConfiguration();
+            if (eroded_soil.SizeOfLoopRange() > 0)
+                soil_eroded_contact.updateConfiguration();
+            water_density_by_summation.exec();
+            if (enable_eroded_soil_water_coupling && eroded_soil.SizeOfLoopRange() > 0)
+                water_force_from_soil.exec();
+            water_viscous_force.exec();
+            water_wall_repulsion.exec();
+            water_pressure_relaxation.exec(dt);
+            viscous_force_on_proxy.exec();
+            pressure_force_on_proxy.exec();
+            if (enable_non_eroded_soil_water_coupling)
+                soil_force_from_proxy.exec();
+            water_density_relaxation.exec(dt);
             integration_time += dt;
             physical_time += dt;
 
@@ -136,6 +323,8 @@ int main(int ac, char *av[])
 
                 if (number_of_iterations % observation_sample_interval == 0 && number_of_iterations != sph_system.RestartStep())
                 {
+                    body_states_recording.writeToFile();
+                    eroded_states_recording.writeToFile();
                     write_mechanical_energy.writeToFile(number_of_iterations);
                 }
                 if (number_of_iterations % restart_output_interval == 0)
@@ -146,6 +335,12 @@ int main(int ac, char *av[])
             /** Update cell linked list and configuration. */
             soil_block.updateCellLinkedList();
             soil_block_complex.updateConfiguration();
+            water_block.updateCellLinkedList();
+            water_block_complex.updateConfiguration();
+            eroded_body.updateCellLinkedList();
+            eroded_body_inner.updateConfiguration();
+            eroded_water_contact.updateConfiguration();
+            soil_water_contact.updateConfiguration();
             correction_matrix.exec();
             interval_updating_configuration += TickCount::now() - time_instance;
         }
@@ -153,6 +348,7 @@ int main(int ac, char *av[])
         vertical_stress.exec();
         accumulated_deviatoric_plastic_strain.exec();
         body_states_recording.writeToFile();
+        eroded_states_recording.writeToFile();
         TickCount t3 = TickCount::now();
         interval += t3 - t2;
     }
