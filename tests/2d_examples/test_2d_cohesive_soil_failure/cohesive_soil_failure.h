@@ -8,30 +8,54 @@
 #include "sphinxsys.h" //SPHinXsys Library.
 using namespace SPH;   // Namespace cite here.
 //----------------------------------------------------------------------
-//	Basic geometry parameters and numerical setup.
+//	Basic geometry parameters and numerical setup (对应论文 4.8 节泥沙侵蚀案例).
 //----------------------------------------------------------------------
-Real LL = 4.0;                        /**< Soil column length. */
-Real LH = 2.0;                        /**< Soil column height. */
-Real DL = 5.0;                        /**< Tank length. */
-Real DH = 2.5;                        /**< Tank height. */
-Real particle_spacing_ref = LL / 100; /**< Initial reference particle spacing. */
-Real BW = particle_spacing_ref * 4;   /**< Extending width for boundary conditions. */
+Real Ls = 2.0;   /**< 砂土床长度 Ls (m). */
+Real Hs = 0.06;  /**< 砂土床高度 Hs (m). */
+Real Lw = 1.0;   /**< 水柱长度 Lw (m). */
+Real Hw = 0.10;  /**< 水柱高度 Hw (m). */
+Real LL = Ls;    /**< 仍沿用原变量名，表示土体长度。 */
+Real LH = Hs;    /**< 仍沿用原变量名，表示土体高度。 */
+Real DL = Ls;    /**< 计算域长度与土床长度一致。 */
+Real DH = Hw + Hs + 0.10; /**< 计算域高度，预留自由表面空间。 */
+Real particle_spacing_ref = 0.0035; /**< 初始粒子间距 dp (m). */
+Real BW = particle_spacing_ref * 4; /**< 边界扩展宽度。 */
 BoundingBoxd system_domain_bounds(Vec2d(-BW, -BW), Vec2d(DL + BW, DH + BW));
 //----------------------------------------------------------------------
-//	Material properties of the soil.
+//	Material properties of the soil (按表 4.1 设置).
 //----------------------------------------------------------------------
-Real rho0_s = 1850;                                                       // reference density of soil
-Real gravity_g = 9.8;                                                     // gravity force of soil
-Real Youngs_modulus = 1.8e6;                                              // reference Youngs modulus
-Real poisson = 0.3;                                                       // Poisson ratio
-Real c_s = sqrt(Youngs_modulus / (rho0_s * 3.0 * (1.0 - 2.0 * poisson))); // sound speed
-Real cohesion = 5.0e3;
-Real friction_angle = 25.0 * Pi / 180;
+Real rho0_s = 1540.0;                                                   // 土体密度 rho_s (kg/m^3)
+Real gravity_g = 9.8;                                                   // 重力加速度 (m/s^2)
+Real Youngs_modulus = 1.0e6;                                            // 弹性模量 (文献未给出，保持合理数值)
+Real poisson = 0.2;                                                     // 泊松比 e
+Real c_s = sqrt(Youngs_modulus / (rho0_s * 3.0 * (1.0 - 2.0 * poisson))); // 声速
+Real cohesion = 0.0;                                                    // 内聚力 C (kPa -> Pa，这里取 0)
+Real friction_angle = 31.0 * Pi / 180.0;                                // 内摩擦角 φ (°)
+// Herschel–Bulkley–Papanastasiou (HBP) 模型参数（泥浆/泥流，见表 4.1）
+Real hbp_yield_stress = 0.0;  // 屈服应力 τ0 (Pa)，泥浆稀薄时可取 0
+Real hbp_consistency = 0.001; // 黏度系数 Vs (Pa·s^n)
+Real hbp_flow_index = 1.0;    // 幂律指数 n
+Real hbp_regularization = 0.0; // Papanastasiou 正则化参数 m (文献给出 0)
+Real d50 = 0.0035;             // 中值粒径 d50 (m)
+Real erosion_velocity_eps = 1.0e-4; // 沉积判据中的速度阈值 (m/s)
+// 侵蚀/淤积状态阈值（用于 DP/HBP 切换，需根据实验标定）
+Real erosion_shear_rate = 2.0;    // 侵蚀触发剪切率 (1/s)
+Real deposition_shear_rate = 0.5; // 回沉/淤积剪切率 (1/s)
+//----------------------------------------------------------------------
+//	Material properties of water (按图示参数设置).
+//----------------------------------------------------------------------
+Real rho0_f = 1000.0;                                     // 水密度 rho_w (kg/m^3)
+Real mu_f = 0.001;                                        // 动力黏度 μ (Pa·s)
+Real c_f = 10.0 * sqrt(gravity_g * (Hw + Hs));            // 人工声速，保证弱可压缩条件
+Real U_f = 1.0;                                           // 参考速度，用于时间步估计
+Real water_soil_force_scale = 1.0;                        // 水-土力耦合系数
+Real erosion_drag_coeff = 5.0 * rho0_f;                   // 侵蚀粒子随流拖曳系数
+Real erosion_velocity_relaxation = 0.2;                   // 侵蚀粒子速度松弛系数(0-1)
 //----------------------------------------------------------------------
 //	Geometric shapes used in this case.
 //----------------------------------------------------------------------
-Vec2d soil_block_halfsize = Vec2d(0.5 * LL, 0.5 * LH); // local center at origin:
-Vec2d soil_block_translation = soil_block_halfsize;
+Vec2d soil_block_halfsize = Vec2d(0.5 * LL, 0.5 * LH); // 土体几何尺寸
+Vec2d soil_block_translation = soil_block_halfsize;   // 土体左下角位于 (0,0)
 Vec2d outer_wall_halfsize = Vec2d(0.5 * DL + BW, 0.5 * DH + BW);
 Vec2d outer_wall_translation = Vec2d(-BW, -BW) + outer_wall_halfsize;
 Vec2d inner_wall_halfsize = Vec2d(0.5 * DL, 0.5 * DH);
@@ -50,6 +74,8 @@ class WallBoundary : public ComplexShape
 };
 std::vector<Vecd> soil_shape{
     Vecd(0, 0), Vecd(0, LH), Vecd(LL, LH), Vecd(LL, 0), Vecd(0, 0)};
+std::vector<Vecd> water_shape{
+    Vecd(0, LH), Vecd(0, LH + Hw), Vecd(Lw, LH + Hw), Vecd(Lw, LH), Vecd(0, LH)};
 
 class Soil : public MultiPolygonShape
 {
@@ -58,6 +84,273 @@ class Soil : public MultiPolygonShape
     {
         multi_polygon_.addAPolygon(soil_shape, ShapeBooleanOps::add);
     }
+};
+
+class WaterBlock : public MultiPolygonShape
+{
+  public:
+    explicit WaterBlock(const std::string &shape_name) : MultiPolygonShape(shape_name)
+    {
+        multi_polygon_.addAPolygon(water_shape, ShapeBooleanOps::add);
+    }
+};
+//---------------------------------------------------------------------- 
+//	土体 wall 代理体粒子生成：与土体粒子保持一一对应
+//----------------------------------------------------------------------
+class SoilWallProxyParticles;
+
+template <>
+class ParticleGenerator<BaseParticles, SoilWallProxyParticles> : public ParticleGenerator<BaseParticles>
+{
+  public:
+    ParticleGenerator(SPHBody &sph_body, BaseParticles &base_particles, BaseParticles &source_particles)
+        : ParticleGenerator<BaseParticles>(sph_body, base_particles),
+          source_particles_(source_particles),
+          source_pos_(source_particles.getVariableDataByName<Vecd>("Position")),
+          source_Vol_(source_particles.getVariableDataByName<Real>("VolumetricMeasure")) {}
+
+  protected:
+    BaseParticles &source_particles_;
+    Vecd *source_pos_;
+    Real *source_Vol_;
+
+    void prepareGeometricData() override
+    {
+        size_t total_real_particles = source_particles_.TotalRealParticles();
+        for (size_t i = 0; i != total_real_particles; ++i)
+        {
+            addPositionAndVolumetricMeasure(source_pos_[i], source_Vol_[i]);
+        }
+    }
+};
+//----------------------------------------------------------------------
+//	未侵蚀土体粒子集合：作为水体动态壁面
+//----------------------------------------------------------------------
+class NonErodedSoilPart : public BodyPartByParticle
+{
+  public:
+    explicit NonErodedSoilPart(RealBody &soil_body)
+        : BodyPartByParticle(soil_body),
+          erosion_state_(soil_body.getBaseParticles().registerStateVariableData<int>("ErosionState"))
+    {
+        TaggingParticleMethod tagging_particle_method =
+            std::bind(&NonErodedSoilPart::tagByErosionState, this, std::placeholders::_1);
+        tagParticles(tagging_particle_method);
+    }
+
+    bool tagByErosionState(size_t particle_index)
+    {
+        return erosion_state_[particle_index] == 0;
+    }
+
+    void updateTags()
+    {
+        TaggingParticleMethod tagging_particle_method =
+            std::bind(&NonErodedSoilPart::tagByErosionState, this, std::placeholders::_1);
+        tagParticles(tagging_particle_method);
+    }
+
+  protected:
+    int *erosion_state_;
+};
+
+//----------------------------------------------------------------------
+//	未侵蚀土体表层粒子集合：用于水体 wall 接触（非侵蚀 + 接触水体）
+//----------------------------------------------------------------------
+class NonErodedSoilSurfacePart : public BodyPartByParticle
+{
+  public:
+    explicit NonErodedSoilSurfacePart(RealBody &soil_body)
+        : BodyPartByParticle(soil_body),
+          pos_(soil_body.getBaseParticles().getVariableDataByName<Vecd>("Position")),
+          erosion_state_(soil_body.getBaseParticles().registerStateVariableData<int>("ErosionState")),
+          surface_indicator_(soil_body.getBaseParticles().registerStateVariableData<int>("Indicator"))
+    {
+        TaggingParticleMethod tagging_particle_method =
+            std::bind(&NonErodedSoilSurfacePart::tagBySurfaceState, this, std::placeholders::_1);
+        tagParticles(tagging_particle_method);
+    }
+
+    bool tagBySurfaceState(size_t particle_index)
+    {
+        return erosion_state_[particle_index] == 0 && (surface_indicator_[particle_index] == 1 || isSoilSurface(particle_index));
+    }
+
+    void updateTags()
+    {
+        TaggingParticleMethod tagging_particle_method =
+            std::bind(&NonErodedSoilSurfacePart::tagBySurfaceState, this, std::placeholders::_1);
+        tagParticles(tagging_particle_method);
+    }
+
+  protected:
+    Vecd *pos_;
+    int *erosion_state_;
+    int *surface_indicator_;
+
+    bool isSoilSurface(size_t particle_index) const
+    {
+        const Real surface_buffer = 0.5 * particle_spacing_ref;
+        return pos_[particle_index][1] >= (LH - surface_buffer);
+    }
+};
+
+//---------------------------------------------------------------------- 
+//	侵蚀土体粒子集合：作为水体可穿透区域
+//----------------------------------------------------------------------
+class ErodedSoilPart : public BodyPartByParticle
+{
+  public:
+    explicit ErodedSoilPart(RealBody &soil_body)
+        : BodyPartByParticle(soil_body),
+          erosion_state_(soil_body.getBaseParticles().registerStateVariableData<int>("ErosionState"))
+    {
+        TaggingParticleMethod tagging_particle_method =
+            std::bind(&ErodedSoilPart::tagByErosionState, this, std::placeholders::_1);
+        tagParticles(tagging_particle_method);
+    }
+
+    bool tagByErosionState(size_t particle_index)
+    {
+        return erosion_state_[particle_index] == 1;
+    }
+
+    void updateTags()
+    {
+        TaggingParticleMethod tagging_particle_method =
+            std::bind(&ErodedSoilPart::tagByErosionState, this, std::placeholders::_1);
+        tagParticles(tagging_particle_method);
+    }
+
+  protected:
+    int *erosion_state_;
+};
+//----------------------------------------------------------------------
+//	将土体表面法向拷贝为 wall 接触所需 NormalDirection
+//----------------------------------------------------------------------
+class NormalDirectionFromSurfaceNormal : public LocalDynamics
+{
+  public:
+    explicit NormalDirectionFromSurfaceNormal(RealBody &soil_body)
+        : LocalDynamics(soil_body),
+          pos_(particles_->getVariableDataByName<Vecd>("Position")),
+          surface_normal_(particles_->registerStateVariableData<Vecd>("SurfaceNormal")),
+          normal_direction_(particles_->registerStateVariableData<Vecd>("NormalDirection"))
+    {
+        particles_->addEvolvingVariable<Vecd>("NormalDirection");
+    }
+
+    void update(size_t index_i, Real dt)
+    {
+        Vecd n = surface_normal_[index_i];
+        if (n.norm() > TinyReal)
+        {
+            normal_direction_[index_i] = n / (n.norm() + TinyReal);
+        }
+        else if (isTopSurface(index_i))
+        {
+            normal_direction_[index_i] = Vecd(0.0, 1.0);
+        }
+        else
+        {
+            normal_direction_[index_i] = Vecd::Zero();
+        }
+    }
+
+  protected:
+    Vecd *pos_;
+    Vecd *surface_normal_;
+    Vecd *normal_direction_;
+
+    bool isTopSurface(size_t index_i) const
+    {
+        const Real surface_buffer = 0.5 * particle_spacing_ref;
+        return pos_[index_i][1] >= (LH - surface_buffer);
+    }
+};
+//----------------------------------------------------------------------
+//	同步土体粒子状态到 wall 代理体
+//----------------------------------------------------------------------
+class SyncSoilWallProxy : public LocalDynamics
+{
+  public:
+    SyncSoilWallProxy(RealBody &soil_body, RealBody &wall_proxy_body)
+        : LocalDynamics(soil_body),
+          soil_particles_(soil_body.getBaseParticles()),
+          wall_particles_(wall_proxy_body.getBaseParticles()),
+          soil_pos_(soil_particles_.getVariableDataByName<Vecd>("Position")),
+          soil_vel_(soil_particles_.registerStateVariableData<Vecd>("Velocity")),
+          soil_normal_(soil_particles_.registerStateVariableData<Vecd>("NormalDirection")),
+          soil_surface_normal_(soil_particles_.registerStateVariableData<Vecd>("SurfaceNormal")),
+          soil_indicator_(soil_particles_.registerStateVariableData<int>("Indicator")),
+          soil_erosion_state_(soil_particles_.registerStateVariableData<int>("ErosionState")),
+          wall_pos_(wall_particles_.registerStateVariableData<Vecd>("Position")),
+          wall_vel_(wall_particles_.registerStateVariableData<Vecd>("Velocity")),
+          wall_acc_(wall_particles_.registerStateVariableData<Vecd>("Acceleration")),
+          wall_normal_(wall_particles_.registerStateVariableData<Vecd>("NormalDirection")),
+          wall_surface_normal_(wall_particles_.registerStateVariableData<Vecd>("SurfaceNormal")),
+          wall_indicator_(wall_particles_.registerStateVariableData<int>("Indicator")),
+          wall_erosion_state_(wall_particles_.registerStateVariableData<int>("ErosionState"))
+    {
+        wall_particles_.addEvolvingVariable<Vecd>("Velocity");
+        wall_particles_.addEvolvingVariable<Vecd>("Acceleration");
+        wall_particles_.addEvolvingVariable<Vecd>("NormalDirection");
+        wall_particles_.addEvolvingVariable<Vecd>("SurfaceNormal");
+        wall_particles_.addEvolvingVariable<int>("Indicator");
+        wall_particles_.addEvolvingVariable<int>("ErosionState");
+    }
+
+    void update(size_t index_i, Real dt)
+    {
+        wall_pos_[index_i] = soil_pos_[index_i];
+        wall_vel_[index_i] = soil_vel_[index_i];
+        wall_acc_[index_i] = Vecd::Zero();
+        wall_normal_[index_i] = soil_normal_[index_i];
+        wall_surface_normal_[index_i] = soil_surface_normal_[index_i];
+        wall_indicator_[index_i] = soil_indicator_[index_i];
+        wall_erosion_state_[index_i] = soil_erosion_state_[index_i];
+    }
+
+  protected:
+    BaseParticles &soil_particles_;
+    BaseParticles &wall_particles_;
+    Vecd *soil_pos_;
+    Vecd *soil_vel_;
+    Vecd *soil_normal_;
+    Vecd *soil_surface_normal_;
+    int *soil_indicator_;
+    int *soil_erosion_state_;
+    Vecd *wall_pos_;
+    Vecd *wall_vel_;
+    Vecd *wall_acc_;
+    Vecd *wall_normal_;
+    Vecd *wall_surface_normal_;
+    int *wall_indicator_;
+    int *wall_erosion_state_;
+};
+//----------------------------------------------------------------------
+//	将 wall 代理体上的流体作用力转移到土体
+//----------------------------------------------------------------------
+class SoilForceFromProxyFluid : public ForcePrior
+{
+  public:
+    SoilForceFromProxyFluid(RealBody &soil_body, RealBody &wall_proxy_body)
+        : ForcePrior(soil_body, "ProxyFluidForce"),
+          proxy_pressure_(wall_proxy_body.getBaseParticles().registerStateVariableData<Vecd>("PressureForceFromFluid")),
+          proxy_viscous_(wall_proxy_body.getBaseParticles().registerStateVariableData<Vecd>("ViscousForceFromFluid"))
+    {
+        particles_->addEvolvingVariable<Vecd>("ProxyFluidForce");
+    }
+
+    void update(size_t index_i, Real dt)
+    {
+        current_force_[index_i] = proxy_pressure_[index_i] + proxy_viscous_[index_i];
+        ForcePrior::update(index_i, dt);
+    }
+
+  protected:
+    Vecd *proxy_pressure_;
+    Vecd *proxy_viscous_;
 };
 //----------------------------------------------------------------------
 //	application dependent initial condition
@@ -79,6 +372,324 @@ class SoilInitialCondition : public continuum_dynamics::ContinuumInitialConditio
         stress_tensor_3D_[index_i](0, 0) = stress_yy * gama;
         stress_tensor_3D_[index_i](2, 2) = stress_yy * gama;
     };
+};
+//----------------------------------------------------------------------
+//	Water-soil interaction forces (scheme A: pressure + viscous coupling)
+//	公式：F_p = -∑ p_j ∇W_ij V_j, F_v = 2μ (v_j - v_i)/(r_ij + 0.01h) ∇W_ij V_j
+//	      其中 ∇W_ij = dW_ij * e_ij, 最终力乘以粒子体积作为 ForcePrior.
+//----------------------------------------------------------------------
+class SoilForceFromWater : public ForcePrior, public DataDelegateContact
+{
+  public:
+    explicit SoilForceFromWater(BaseContactRelation &contact_relation)
+        : ForcePrior(contact_relation.getSPHBody(), "SoilWaterForce"), DataDelegateContact(contact_relation),
+          vel_(particles_->registerStateVariableData<Vecd>("Velocity")),
+          erosion_state_(particles_->registerStateVariableData<int>("ErosionState")),
+          Vol_(particles_->getVariableDataByName<Real>("VolumetricMeasure"))
+    {
+        for (size_t k = 0; k != contact_particles_.size(); ++k)
+        {
+            contact_vel_.push_back(contact_particles_[k]->registerStateVariableData<Vecd>("Velocity"));
+            contact_p_.push_back(contact_particles_[k]->registerStateVariableData<Real>("Pressure"));
+            contact_Vol_.push_back(contact_particles_[k]->getVariableDataByName<Real>("VolumetricMeasure"));
+            smoothing_length_.push_back(contact_bodies_[k]->getSPHAdaptation().ReferenceSmoothingLength());
+        }
+    }
+
+    void update(size_t index_i, Real dt)
+    {
+        Vecd force = Vecd::Zero();
+        for (size_t k = 0; k < contact_configuration_.size(); ++k)
+        {
+            Vecd *vel_k = contact_vel_[k];
+            Real *p_k = contact_p_[k];
+            Real *Vol_k = contact_Vol_[k];
+            Real smoothing_length_k = smoothing_length_[k];
+            Neighborhood &contact_neighborhood = (*contact_configuration_[k])[index_i];
+            for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
+            {
+                size_t index_j = contact_neighborhood.j_[n];
+                Vecd gradW = contact_neighborhood.dW_ij_[n] * contact_neighborhood.e_ij_[n];
+                Real r_ij = contact_neighborhood.r_ij_[n];
+                force -= p_k[index_j] * gradW * Vol_k[index_j];
+                Vecd vel_derivative = 2.0 * (vel_k[index_j] - vel_[index_i]) / (r_ij + 0.01 * smoothing_length_k);
+                force += 2.0 * mu_f * vel_derivative * contact_neighborhood.dW_ij_[n] * Vol_k[index_j];
+                if (erosion_state_[index_i] == 1)
+                {
+                    force += erosion_drag_coeff * (vel_k[index_j] - vel_[index_i]) *
+                             contact_neighborhood.W_ij_[n] * Vol_k[index_j];
+                }
+            }
+        }
+        current_force_[index_i] = water_soil_force_scale * force * Vol_[index_i];
+        ForcePrior::update(index_i, dt);
+    }
+
+  protected:
+    Vecd *vel_;
+    int *erosion_state_;
+    Real *Vol_;
+    StdVec<Vecd *> contact_vel_;
+    StdVec<Real *> contact_p_;
+    StdVec<Real *> contact_Vol_;
+    StdVec<Real> smoothing_length_;
+};
+
+class WaterForceFromSoil : public ForcePrior, public DataDelegateContact
+{
+  public:
+    explicit WaterForceFromSoil(BaseContactRelation &contact_relation)
+        : ForcePrior(contact_relation.getSPHBody(), "WaterSoilForce"), DataDelegateContact(contact_relation),
+          vel_(particles_->registerStateVariableData<Vecd>("Velocity")),
+          Vol_(particles_->getVariableDataByName<Real>("VolumetricMeasure"))
+    {
+        for (size_t k = 0; k != contact_particles_.size(); ++k)
+        {
+            contact_vel_.push_back(contact_particles_[k]->registerStateVariableData<Vecd>("Velocity"));
+            contact_p_.push_back(contact_particles_[k]->registerStateVariableData<Real>("Pressure"));
+            contact_Vol_.push_back(contact_particles_[k]->getVariableDataByName<Real>("VolumetricMeasure"));
+            contact_erosion_state_.push_back(contact_particles_[k]->getVariableDataByName<int>("ErosionState"));
+            smoothing_length_.push_back(contact_bodies_[k]->getSPHAdaptation().ReferenceSmoothingLength());
+        }
+    }
+
+    void update(size_t index_i, Real dt)
+    {
+        Vecd force = Vecd::Zero();
+        for (size_t k = 0; k < contact_configuration_.size(); ++k)
+        {
+            Vecd *vel_k = contact_vel_[k];
+            Real *p_k = contact_p_[k];
+            Real *Vol_k = contact_Vol_[k];
+            int *erosion_state_k = contact_erosion_state_[k];
+            Real smoothing_length_k = smoothing_length_[k];
+            Neighborhood &contact_neighborhood = (*contact_configuration_[k])[index_i];
+            for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
+            {
+                size_t index_j = contact_neighborhood.j_[n];
+                Vecd gradW = contact_neighborhood.dW_ij_[n] * contact_neighborhood.e_ij_[n];
+                Real r_ij = contact_neighborhood.r_ij_[n];
+                force -= p_k[index_j] * gradW * Vol_k[index_j];
+                Vecd vel_derivative = 2.0 * (vel_k[index_j] - vel_[index_i]) / (r_ij + 0.01 * smoothing_length_k);
+                force += 2.0 * mu_f * vel_derivative * contact_neighborhood.dW_ij_[n] * Vol_k[index_j];
+            }
+        }
+        current_force_[index_i] = water_soil_force_scale * force * Vol_[index_i];
+        ForcePrior::update(index_i, dt);
+    }
+
+  protected:
+    Vecd *vel_;
+    Real *Vol_;
+    StdVec<Vecd *> contact_vel_;
+    StdVec<Real *> contact_p_;
+    StdVec<Real *> contact_Vol_;
+    StdVec<int *> contact_erosion_state_;
+    StdVec<Real> smoothing_length_;
+};
+//----------------------------------------------------------------------
+//	水体-未侵蚀土体的动态壁面处理（近似 Contact<Wall>）
+//	仅当土体粒子为未侵蚀状态（ErosionState==0）时施加边界压力贡献
+//----------------------------------------------------------------------
+class WaterWallBoundaryFromSoil : public LocalDynamics, public DataDelegateContact
+{
+  public:
+    explicit WaterWallBoundaryFromSoil(BaseContactRelation &contact_relation)
+        : LocalDynamics(contact_relation.getSPHBody()), DataDelegateContact(contact_relation),
+          rho_(particles_->registerStateVariableData<Real>("Density")),
+          p_(particles_->registerStateVariableData<Real>("Pressure")),
+          mass_(particles_->registerStateVariableData<Real>("Mass")),
+          force_(particles_->registerStateVariableData<Vecd>("Force")),
+          force_prior_(particles_->registerStateVariableData<Vecd>("ForcePrior")),
+          drho_dt_(particles_->registerStateVariableData<Real>("DensityChangeRate"))
+    {
+        for (size_t k = 0; k != contact_particles_.size(); ++k)
+        {
+            wall_Vol_.push_back(contact_particles_[k]->getVariableDataByName<Real>("VolumetricMeasure"));
+        }
+    }
+
+    void interaction(size_t index_i, Real dt = 0.0)
+    {
+        Vecd force = Vecd::Zero();
+        Real rho_dissipation(0);
+        for (size_t k = 0; k < contact_configuration_.size(); ++k)
+        {
+            Real *wall_Vol_k = wall_Vol_[k];
+            Neighborhood &wall_neighborhood = (*contact_configuration_[k])[index_i];
+            for (size_t n = 0; n != wall_neighborhood.current_size_; ++n)
+            {
+                size_t index_j = wall_neighborhood.j_[n];
+                Vecd &e_ij = wall_neighborhood.e_ij_[n];
+                Real dW_ijV_j = wall_neighborhood.dW_ij_[n] * wall_Vol_k[index_j];
+                Real r_ij = wall_neighborhood.r_ij_[n];
+                Real face_wall_external_acceleration = (force_prior_[index_i] / mass_[index_i]).dot(-e_ij);
+                Real p_j_in_wall = p_[index_i] + rho_[index_i] * r_ij * SMAX(Real(0), face_wall_external_acceleration);
+                force -= (p_[index_i] + p_j_in_wall) * dW_ijV_j * e_ij;
+                rho_dissipation += 0.0;
+            }
+        }
+        force_[index_i] += force * particles_->getVariableDataByName<Real>("VolumetricMeasure")[index_i];
+        drho_dt_[index_i] += rho_dissipation * rho_[index_i];
+    }
+
+  protected:
+    Real *rho_, *p_, *mass_, *drho_dt_;
+    Vecd *force_, *force_prior_;
+    StdVec<Real *> wall_Vol_;
+};
+//----------------------------------------------------------------------
+//	侵蚀判据与沉积判据（对应论文 4.4.2 / 4.4.3）
+//	交界面判定：2h 支持域内是否存在水粒子
+//	流速估计：v_i = sum(v_j W_ij V_j) / sum(W_ij V_j)
+//	侵蚀判据：E = v_i - v_ic, 其中 v_ic 按 d50 分段（式 4.3/4.4）
+//	沉积判据：D > dp 且 E <= 0 且 v_is = 0（式 4.10-4.12）
+//----------------------------------------------------------------------
+class ErosionStateByVelocity : public LocalDynamics, public DataDelegateInner, public DataDelegateContact
+{
+  public:
+    ErosionStateByVelocity(BaseInnerRelation &inner_relation, BaseContactRelation &contact_relation)
+        : LocalDynamics(inner_relation.getSPHBody()),
+          DataDelegateInner(inner_relation), DataDelegateContact(contact_relation),
+          pos_(particles_->getVariableDataByName<Vecd>("Position")),
+          vel_(particles_->registerStateVariableData<Vecd>("Velocity")),
+          Vol_(particles_->getVariableDataByName<Real>("VolumetricMeasure")),
+          erosion_state_(particles_->registerStateVariableData<int>("ErosionState")),
+          erosion_start_pos_(particles_->registerStateVariableData<Vecd>("ErosionStartPosition")),
+          interface_indicator_(particles_->registerStateVariableData<int>("InterfaceIndicator"))
+    {
+        particles_->addEvolvingVariable<Vecd>("ErosionStartPosition");
+        particles_->addEvolvingVariable<int>("InterfaceIndicator");
+        for (size_t k = 0; k != contact_particles_.size(); ++k)
+        {
+            contact_vel_.push_back(contact_particles_[k]->registerStateVariableData<Vecd>("Velocity"));
+            contact_Vol_.push_back(contact_particles_[k]->getVariableDataByName<Real>("VolumetricMeasure"));
+        }
+    }
+
+    void update(size_t index_i, Real dt)
+    {
+        Real weight_sum = 0.0;
+        Vecd velocity_sum = Vecd::Zero();
+        bool has_interface = false;
+        Neighborhood &inner_neighborhood = inner_configuration_[index_i];
+        for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
+        {
+            size_t index_j = inner_neighborhood.j_[n];
+            if (erosion_state_[index_j] == 1)
+            {
+                Real weight = inner_neighborhood.W_ij_[n] * Vol_[index_j];
+                weight_sum += weight;
+                velocity_sum += vel_[index_j] * weight;
+                has_interface = true;
+            }
+        }
+        for (size_t k = 0; k < contact_configuration_.size(); ++k)
+        {
+            Vecd *vel_k = contact_vel_[k];
+            Real *Vol_k = contact_Vol_[k];
+            Neighborhood &contact_neighborhood = (*contact_configuration_[k])[index_i];
+            if (contact_neighborhood.current_size_ > 0)
+                has_interface = true;
+            for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
+            {
+                size_t index_j = contact_neighborhood.j_[n];
+                Real W_ij = contact_neighborhood.W_ij_[n];
+                Real weight = W_ij * Vol_k[index_j];
+                weight_sum += weight;
+                velocity_sum += vel_k[index_j] * weight;
+            }
+        }
+        interface_indicator_[index_i] = has_interface ? 1 : 0;
+
+        if (!interface_indicator_[index_i])
+        {
+            erosion_state_[index_i] = 0;
+            return;
+        }
+
+        Real v_i = (weight_sum > TinyReal) ? velocity_sum.norm() / weight_sum : 0.0;
+        Real d50_mm = d50 * 1000.0;
+        Real v_ic = (d50_mm < 0.1) ? 0.1 * pow(d50_mm, -0.2) : 0.35 * pow(d50_mm, 0.45);
+        Real E = v_i - v_ic;
+
+        if (E > 0.0)
+        {
+            if (erosion_state_[index_i] == 0)
+                erosion_start_pos_[index_i] = pos_[index_i];
+            erosion_state_[index_i] = 1;
+        }
+        else if (erosion_state_[index_i] == 1)
+        {
+            Real D = (pos_[index_i] - erosion_start_pos_[index_i]).norm();
+            if (D > particle_spacing_ref && vel_[index_i].norm() <= erosion_velocity_eps)
+            {
+                erosion_state_[index_i] = 0;
+            }
+        }
+    }
+
+  protected:
+    Vecd *pos_, *vel_;
+    Real *Vol_;
+    int *erosion_state_, *interface_indicator_;
+    Vecd *erosion_start_pos_;
+    StdVec<Vecd *> contact_vel_;
+    StdVec<Real *> contact_Vol_;
+};
+//----------------------------------------------------------------------
+//	侵蚀土体随水流运动（速度松弛）
+//	侵蚀粒子速度向水体局部平均速度收敛
+//----------------------------------------------------------------------
+class ErodedSoilVelocityRelaxation : public LocalDynamics, public DataDelegateContact
+{
+  public:
+    explicit ErodedSoilVelocityRelaxation(BaseContactRelation &contact_relation)
+        : LocalDynamics(contact_relation.getSPHBody()), DataDelegateContact(contact_relation),
+          vel_(particles_->registerStateVariableData<Vecd>("Velocity")),
+          erosion_state_(particles_->registerStateVariableData<int>("ErosionState"))
+    {
+        for (size_t k = 0; k != contact_particles_.size(); ++k)
+        {
+            contact_vel_.push_back(contact_particles_[k]->registerStateVariableData<Vecd>("Velocity"));
+            contact_Vol_.push_back(contact_particles_[k]->getVariableDataByName<Real>("VolumetricMeasure"));
+        }
+    }
+
+    void update(size_t index_i, Real dt)
+    {
+        if (erosion_state_[index_i] == 0)
+            return;
+
+        Real weight_sum = 0.0;
+        Vecd velocity_sum = Vecd::Zero();
+        for (size_t k = 0; k < contact_configuration_.size(); ++k)
+        {
+            Vecd *vel_k = contact_vel_[k];
+            Real *Vol_k = contact_Vol_[k];
+            Neighborhood &contact_neighborhood = (*contact_configuration_[k])[index_i];
+            for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
+            {
+                size_t index_j = contact_neighborhood.j_[n];
+                Real weight = contact_neighborhood.W_ij_[n] * Vol_k[index_j];
+                weight_sum += weight;
+                velocity_sum += vel_k[index_j] * weight;
+            }
+        }
+
+        if (weight_sum > TinyReal)
+        {
+            Vecd target_vel = velocity_sum / weight_sum;
+            vel_[index_i] = (1.0 - erosion_velocity_relaxation) * vel_[index_i] +
+                            erosion_velocity_relaxation * target_vel;
+        }
+    }
+
+  protected:
+    Vecd *vel_;
+    int *erosion_state_;
+    StdVec<Vecd *> contact_vel_;
+    StdVec<Real *> contact_Vol_;
 };
 //----------------------------------------------------------------------
 //	Unified transport velocity correction
