@@ -183,6 +183,107 @@ void PlasticIntegration2ndHalf<Inner<>, RiemannSolverType>::update(size_t index_
 }
 //=================================================================================================//
 template <class RiemannSolverType>
+PlasticIntegration2ndHalfSwitchable<Inner<>, RiemannSolverType>::PlasticIntegration2ndHalfSwitchable(BaseInnerRelation &inner_relation)
+    : BasePlasticIntegration<DataDelegateInner>(inner_relation),
+      dp_hbp_continuum_(DynamicCast<DpHbpContinuum>(this, this->particles_->getBaseMaterial())),
+      riemann_solver_(plastic_continuum_, plastic_continuum_, 20.0 * (Real)Dimensions),
+      Vol_(particles_->getVariableDataByName<Real>("VolumetricMeasure")),
+      mass_(particles_->getVariableDataByName<Real>("Mass")),
+      erosion_state_(this->particles_->template registerStateVariableData<int>("ErosionState"))
+{
+    this->particles_->template addEvolvingVariable<int>("ErosionState");
+}
+//=================================================================================================//
+template <class RiemannSolverType>
+void PlasticIntegration2ndHalfSwitchable<Inner<>, RiemannSolverType>::initialization(size_t index_i, Real dt)
+{
+    pos_[index_i] += vel_[index_i] * dt * 0.5;
+}
+//=================================================================================================//
+template <class RiemannSolverType>
+void PlasticIntegration2ndHalfSwitchable<Inner<>, RiemannSolverType>::interaction(size_t index_i, Real dt)
+{
+    Real density_change_rate(0);
+    Vecd p_dissipation = Vecd::Zero();
+    Matd velocity_gradient = Matd::Zero();
+    const Neighborhood &inner_neighborhood = inner_configuration_[index_i];
+    for (size_t n = 0; n != inner_neighborhood.current_size_; ++n)
+    {
+        size_t index_j = inner_neighborhood.j_[n];
+        const Vecd &e_ij = inner_neighborhood.e_ij_[n];
+        Real dW_ijV_j = inner_neighborhood.dW_ij_[n] * Vol_[index_j];
+        Real u_jump = (vel_[index_i] - vel_[index_j]).dot(e_ij);
+        density_change_rate += u_jump * dW_ijV_j;
+        p_dissipation += mass_[index_i] * riemann_solver_.DissipativePJump(u_jump) * dW_ijV_j * e_ij;
+        velocity_gradient -= (vel_[index_i] - vel_[index_j]) * dW_ijV_j * e_ij.transpose();
+    }
+    drho_dt_[index_i] += density_change_rate * rho_[index_i];
+    force_[index_i] = p_dissipation / rho_[index_i];
+    velocity_gradient_[index_i] = velocity_gradient;
+}
+//=================================================================================================//
+template <class RiemannSolverType>
+void PlasticIntegration2ndHalfSwitchable<Inner<>, RiemannSolverType>::update(size_t index_i, Real dt)
+{
+    rho_[index_i] += drho_dt_[index_i] * dt * 0.5;
+    Vol_[index_i] = mass_[index_i] / rho_[index_i];
+    Mat3d velocity_gradient = upgradeToMat3d(velocity_gradient_[index_i]);
+    Mat3d stress_tensor_rate_3D_ = Mat3d::Zero();
+    if (erosion_state_[index_i])
+    {
+        stress_tensor_rate_3D_ = dp_hbp_continuum_.HbpConstitutiveRelation(velocity_gradient, stress_tensor_3D_[index_i]);
+    }
+    else
+    {
+        stress_tensor_rate_3D_ = plastic_continuum_.ConstitutiveRelation(velocity_gradient, stress_tensor_3D_[index_i]);
+    }
+    stress_rate_3D_[index_i] += stress_tensor_rate_3D_;
+    stress_tensor_3D_[index_i] += stress_rate_3D_[index_i] * dt;
+    if (!erosion_state_[index_i])
+    {
+        stress_tensor_3D_[index_i] = plastic_continuum_.ReturnMapping(stress_tensor_3D_[index_i]);
+    }
+    strain_rate_3D_[index_i] = 0.5 * (velocity_gradient + velocity_gradient.transpose());
+    strain_tensor_3D_[index_i] += strain_rate_3D_[index_i] * dt;
+}
+//=================================================================================================//
+template <class RiemannSolverType>
+PlasticIntegration2ndHalfSwitchable<Contact<Wall>, RiemannSolverType>::
+    PlasticIntegration2ndHalfSwitchable(BaseContactRelation &wall_contact_relation)
+    : BaseIntegrationWithWall(wall_contact_relation),
+      riemann_solver_(plastic_continuum_, plastic_continuum_) {}
+//=================================================================================================//
+template <class RiemannSolverType>
+void PlasticIntegration2ndHalfSwitchable<Contact<Wall>, RiemannSolverType>::interaction(size_t index_i, Real dt)
+{
+    Real density_change_rate = 0.0;
+    Vecd p_dissipation = Vecd::Zero();
+    Vecd vel_i = vel_[index_i];
+    Matd velocity_gradient = Matd::Zero();
+    for (size_t k = 0; k < contact_configuration_.size(); ++k)
+    {
+        Vecd *vel_ave_k = wall_vel_ave_[k];
+        Vecd *n_k = wall_n_[k];
+        Real *wall_Vol_k = wall_Vol_[k];
+        Neighborhood &wall_neighborhood = (*contact_configuration_[k])[index_i];
+        for (size_t n = 0; n != wall_neighborhood.current_size_; ++n)
+        {
+            size_t index_j = wall_neighborhood.j_[n];
+            Vecd &e_ij = wall_neighborhood.e_ij_[n];
+            Real dW_ijV_j = wall_neighborhood.dW_ij_[n] * wall_Vol_k[index_j];
+            Vecd vel_j_in_wall = 2.0 * vel_ave_k[index_j] - vel_[index_i];
+            density_change_rate += (vel_[index_i] - vel_j_in_wall).dot(e_ij) * dW_ijV_j;
+            Real u_jump = 2.0 * (vel_[index_i] - vel_ave_k[index_j]).dot(n_k[index_j]);
+            p_dissipation += mass_[index_i] * riemann_solver_.DissipativePJump(u_jump) * dW_ijV_j * n_k[index_j];
+            velocity_gradient -= (vel_i - vel_j_in_wall) * dW_ijV_j * e_ij.transpose();
+        }
+    }
+    drho_dt_[index_i] += density_change_rate * rho_[index_i];
+    force_[index_i] += p_dissipation / rho_[index_i];
+    velocity_gradient_[index_i] += velocity_gradient;
+}
+//=================================================================================================//
+template <class RiemannSolverType>
 PlasticIntegration2ndHalf<Contact<Wall>, RiemannSolverType>::
     PlasticIntegration2ndHalf(BaseContactRelation &wall_contact_relation)
     : BaseIntegrationWithWall(wall_contact_relation),

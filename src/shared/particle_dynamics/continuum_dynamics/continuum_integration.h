@@ -175,6 +175,48 @@ using PlasticIntegration2ndHalfWithWall = ComplexInteraction<PlasticIntegration2
 using PlasticIntegration2ndHalfWithWallNoRiemann = PlasticIntegration2ndHalfWithWall<NoRiemannSolver>;
 using PlasticIntegration2ndHalfWithWallRiemann = PlasticIntegration2ndHalfWithWall<AcousticRiemannSolver>;
 
+template <typename... InteractionTypes>
+class PlasticIntegration2ndHalfSwitchable;
+
+template <class RiemannSolverType>
+class PlasticIntegration2ndHalfSwitchable<Inner<>, RiemannSolverType>
+    : public BasePlasticIntegration<DataDelegateInner>
+{
+  public:
+    explicit PlasticIntegration2ndHalfSwitchable(BaseInnerRelation &inner_relation);
+    virtual ~PlasticIntegration2ndHalfSwitchable() {};
+    void initialization(size_t index_i, Real dt = 0.0);
+    void interaction(size_t index_i, Real dt = 0.0);
+    void update(size_t index_i, Real dt = 0.0);
+
+  protected:
+    DpHbpContinuum &dp_hbp_continuum_;
+    RiemannSolverType riemann_solver_;
+    Real *Vol_, *mass_;
+    int *erosion_state_;
+};
+using PlasticIntegration2ndHalfSwitchableInnerNoRiemann = PlasticIntegration2ndHalfSwitchable<Inner<>, NoRiemannSolver>;
+using PlasticIntegration2ndHalfSwitchableInnerRiemann = PlasticIntegration2ndHalfSwitchable<Inner<>, AcousticRiemannSolver>;
+
+template <class RiemannSolverType>
+class PlasticIntegration2ndHalfSwitchable<Contact<Wall>, RiemannSolverType>
+    : public BaseIntegrationWithWall
+{
+  public:
+    explicit PlasticIntegration2ndHalfSwitchable(BaseContactRelation &wall_contact_relation);
+    virtual ~PlasticIntegration2ndHalfSwitchable() {};
+    inline void interaction(size_t index_i, Real dt = 0.0);
+
+  protected:
+    RiemannSolverType riemann_solver_;
+};
+
+template <class RiemannSolverType>
+using PlasticIntegration2ndHalfSwitchableWithWall =
+    ComplexInteraction<PlasticIntegration2ndHalfSwitchable<Inner<>, Contact<Wall>>, RiemannSolverType>;
+using PlasticIntegration2ndHalfSwitchableWithWallNoRiemann = PlasticIntegration2ndHalfSwitchableWithWall<NoRiemannSolver>;
+using PlasticIntegration2ndHalfSwitchableWithWallRiemann = PlasticIntegration2ndHalfSwitchableWithWall<AcousticRiemannSolver>;
+
 class StressDiffusion : public BasePlasticIntegration<DataDelegateInner>
 {
   public:
