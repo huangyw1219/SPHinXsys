@@ -624,8 +624,6 @@ int main(int ac, char *av[])
     InnerRelation soil_inner(soil_block);
     ContactRelation soil_wall_contact(soil_block, {&wall_boundary});
     ContactRelation soil_fluid_contact(soil_block, {&water_block, &eroded_soil});
-    ContactRelation soil_water_contact(soil_block, {&water_block});
-    ContactRelation soil_eroded_contact(soil_block, {&eroded_soil});
 
     //------------------------------------------------------------------
     //	Define the main numerical methods used in the simulation.
@@ -668,10 +666,6 @@ int main(int ac, char *av[])
     InteractionWithUpdate<fluid_dynamics::VelocityGradientWithWall<NoKernelCorrection>> eroded_velocity_gradient(eroded_inner, eroded_wall_contact);
     SimpleDynamics<fluid_dynamics::ShearRateDependentViscosity> eroded_shear_rate_viscosity(eroded_soil);
     InteractionWithUpdate<fluid_dynamics::NonNewtonianViscousForceWithWall<AngularConservative>> eroded_viscous_acceleration(eroded_inner, eroded_wall_contact);
-
-    InteractionWithUpdate<solid_dynamics::PressureForceFromFluid<decltype(water_density_relaxation)>> water_pressure_on_soil(soil_water_contact);
-    InteractionWithUpdate<solid_dynamics::PressureForceFromFluid<decltype(eroded_density_relaxation)>> eroded_pressure_on_soil(soil_eroded_contact);
-    solid_dynamics::AverageVelocityAndAcceleration soil_average_velocity(soil_block);
 
     ReduceDynamics<fluid_dynamics::AdvectionTimeStep> water_advection_time_step(water_block, U_f);
     ReduceDynamics<fluid_dynamics::AdvectionTimeStep> eroded_advection_time_step(eroded_soil, U_f);
@@ -757,8 +751,6 @@ int main(int ac, char *av[])
                 eroded_viscous_acceleration.exec();
 
                 soil_stress_diffusion.exec();
-                water_pressure_on_soil.exec();
-                eroded_pressure_on_soil.exec();
                 soil_stress_relaxation.exec(dt);
                 soil_density_relaxation.exec(dt);
                 soil_displacement.exec(dt);
@@ -788,7 +780,6 @@ int main(int ac, char *av[])
             eroded_soil_contact.updateConfiguration();
             soil_fluid_contact.updateConfiguration();
             soil_wall_contact.updateConfiguration();
-            soil_eroded_contact.updateConfiguration();
             correction_matrix.exec();
         }
         body_states_recording.writeToFile();
