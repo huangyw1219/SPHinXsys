@@ -213,6 +213,9 @@ int main(int ac, char *av[])
     SimpleDynamics<DepositionIdentification> deposition_identification(eroded_soil, deposition_velocity_threshold);
     SimpleDynamics<UpdateDisplacement> update_displacement(soil_block);
 
+    SimpleDynamics<continuum_dynamics::VerticalStress> vertical_stress(soil_block);
+    SimpleDynamics<continuum_dynamics::AccDeviatoricPlasticStrain> accumulated_deviatoric_plastic_strain(soil_block);
+
     BodyStatesRecordingToVtp body_states_recording(sph_system);
     body_states_recording.addToWrite<Real>(soil_block, "Pressure");
     body_states_recording.addToWrite<Real>(soil_block, "Density");
@@ -224,9 +227,6 @@ int main(int ac, char *av[])
     body_states_recording.addToWrite<Vecd>(soil_block, "Displacement");
     body_states_recording.addToWrite<Vecd>(water_block, "Velocity");
     body_states_recording.addToWrite<Vecd>(eroded_soil, "Velocity");
-
-    SimpleDynamics<continuum_dynamics::VerticalStress> vertical_stress(soil_block);
-    SimpleDynamics<continuum_dynamics::AccDeviatoricPlasticStrain> accumulated_deviatoric_plastic_strain(soil_block);
 
     sph_system.initializeSystemCellLinkedLists();
     sph_system.initializeSystemConfigurations();
