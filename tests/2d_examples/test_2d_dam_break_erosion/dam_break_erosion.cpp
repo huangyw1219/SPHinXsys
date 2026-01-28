@@ -120,6 +120,12 @@ int main(int ac, char *av[])
     water_block.defineMaterial<WeaklyCompressibleFluid>(rho0_f, c_f);
     water_block.generateParticles<BaseParticles, Lattice>();
 
+    auto &water_particles = water_block.getBaseParticles();
+    water_particles.registerStateVariableData<Real>("Pressure");
+    water_particles.registerStateVariableData<Real>("Density");
+    water_particles.addEvolvingVariable<Real>("Pressure");
+    water_particles.addEvolvingVariable<Real>("Density");
+
     FluidBody eroded_soil(sph_system, makeShared<Soil>("ErodedSoil"));
     eroded_soil.defineClosure<WeaklyCompressibleFluid, HerschelBulkleyViscosity>(
         ConstructArgs(rho0_s, c_s), ConstructArgs(hb_min_shear_rate, hb_max_shear_rate, hb_consistency, hb_power_index, hb_yield_stress));
