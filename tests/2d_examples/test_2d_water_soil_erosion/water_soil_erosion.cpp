@@ -1,6 +1,6 @@
-/**
- * @file 	water_soil_erosion.cpp
- * @brief 	2D water-soil coupling with erosion and deposition.
+/*
+ * water_soil_erosion.cpp
+ * 2D water-soil coupling with erosion and deposition.
  */
 #include "sphinxsys.h"
 
