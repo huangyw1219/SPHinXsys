@@ -524,7 +524,7 @@ class FluidSoilRepulsion : public LocalDynamics, public DataDelegateContact
     FluidSoilRepulsion(BaseContactRelation &fluid_soil_contact, Real strength)
         : LocalDynamics(fluid_soil_contact.getSPHBody()), DataDelegateContact(fluid_soil_contact),
           strength_(strength),
-          acc_(particles_->getVariableDataByName<Vecd>("Acceleration")),
+          acc_(particles_->registerStateVariableData<Vecd>("Acceleration")),
           pos_(particles_->getVariableDataByName<Vecd>("Position")),
           Vol_(particles_->getVariableDataByName<Real>("VolumetricMeasure"))
     {
