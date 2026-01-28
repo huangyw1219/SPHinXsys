@@ -664,6 +664,7 @@ int main(int ac, char *av[])
     InteractionWithUpdate<fluid_dynamics::BaseDensitySummationComplex<Inner<>, Contact<>, Contact<>>>
         eroded_density_by_summation(eroded_inner, eroded_fluid_contact, eroded_wall_contact);
 
+    InteractionDynamics<fluid_dynamics::DistanceFromWall> eroded_distance_to_wall(eroded_wall_contact);
     InteractionWithUpdate<fluid_dynamics::VelocityGradientWithWall<NoKernelCorrection>> eroded_velocity_gradient(eroded_inner, eroded_wall_contact);
     SimpleDynamics<fluid_dynamics::ShearRateDependentViscosity> eroded_shear_rate_viscosity(eroded_soil);
     InteractionWithUpdate<fluid_dynamics::NonNewtonianViscousForceWithWall<AngularConservative>> eroded_viscous_acceleration(eroded_inner, eroded_wall_contact);
@@ -750,6 +751,7 @@ int main(int ac, char *av[])
                 water_density_relaxation.exec(dt);
                 eroded_density_relaxation.exec(dt);
 
+                eroded_distance_to_wall.exec();
                 eroded_velocity_gradient.exec();
                 eroded_shear_rate_viscosity.exec();
                 eroded_viscous_acceleration.exec();
