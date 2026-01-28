@@ -20,7 +20,7 @@ Real soil_flat_length = 2.0;
 Real soil_slope_end = 3.0;
 Real water_length = 1.0;
 Real water_height = 0.1;
-Real particle_spacing_ref = 0.02; /**< Initial reference particle spacing. */
+Real particle_spacing_ref = 0.01; /**< Initial reference particle spacing. */
 Real BW = particle_spacing_ref * 4.0;
 BoundingBoxd system_domain_bounds(Vec2d(-BW, -BW), Vec2d(DL + BW, DH + BW));
 //----------------------------------------------------------------------
@@ -48,6 +48,7 @@ Real hb_yield_stress = 50.0;
 Real erosion_tau_crit = 15.0;
 Real erosion_coeff = 1.0;
 Real deposition_velocity = 0.05;
+Real soil_repulsion_strength = 50.0;
 //----------------------------------------------------------------------
 //	Geometric shapes.
 //----------------------------------------------------------------------
@@ -461,7 +462,18 @@ class SoilToErodedTransfer : public LocalDynamics, public DataDelegateContact
         size_t index_i = 0;
         while (index_i < particles_->TotalRealParticles())
         {
-            if (indicator_[index_i] && erosion_state_[index_i] == 0)
+            bool has_fluid_contact = false;
+            for (size_t k = 0; k < contact_configuration_.size(); ++k)
+            {
+                Neighborhood &contact_neighborhood = (*contact_configuration_[k])[index_i];
+                if (contact_neighborhood.current_size_ > 0)
+                {
+                    has_fluid_contact = true;
+                    break;
+                }
+            }
+
+            if (indicator_[index_i] && has_fluid_contact && erosion_state_[index_i] == 0)
             {
                 Real tau_max = 0.0;
                 for (size_t k = 0; k < contact_configuration_.size(); ++k)
@@ -504,6 +516,56 @@ class SoilToErodedTransfer : public LocalDynamics, public DataDelegateContact
     Real *Vol_;
     StdVec<Vecd *> contact_vel_;
     StdVec<Real *> contact_rho_;
+};
+
+class FluidSoilRepulsion : public LocalDynamics, public DataDelegateContact
+{
+  public:
+    FluidSoilRepulsion(BaseContactRelation &fluid_soil_contact, Real strength)
+        : LocalDynamics(fluid_soil_contact.getSPHBody()), DataDelegateContact(fluid_soil_contact),
+          strength_(strength),
+          acc_(particles_->getVariableDataByName<Vecd>("Acceleration")),
+          pos_(particles_->getVariableDataByName<Vecd>("Position")),
+          Vol_(particles_->getVariableDataByName<Real>("VolumetricMeasure"))
+    {
+        for (size_t k = 0; k < contact_particles_.size(); ++k)
+        {
+            contact_pos_.push_back(contact_particles_[k]->getVariableDataByName<Vecd>("Position"));
+            contact_Vol_.push_back(contact_particles_[k]->getVariableDataByName<Real>("VolumetricMeasure"));
+        }
+    }
+
+    void interaction(size_t index_i, Real dt = 0.0)
+    {
+        Vecd repulsion = Vecd::Zero();
+        for (size_t k = 0; k < contact_configuration_.size(); ++k)
+        {
+            Vecd *pos_k = contact_pos_[k];
+            Real *Vol_k = contact_Vol_[k];
+            Neighborhood &contact_neighborhood = (*contact_configuration_[k])[index_i];
+            for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
+            {
+                size_t index_j = contact_neighborhood.j_[n];
+                Vecd e_ij = contact_neighborhood.e_ij_[n];
+                Real r_ij = contact_neighborhood.r_ij_[n];
+                if (r_ij < smoothing_length_)
+                {
+                    Real factor = (smoothing_length_ - r_ij) * strength_;
+                    repulsion += factor * Vol_k[index_j] * e_ij;
+                }
+            }
+        }
+        acc_[index_i] += repulsion / (Vol_[index_i] + TinyReal);
+    }
+
+  protected:
+    Real strength_;
+    Vecd *acc_;
+    Vecd *pos_;
+    Real *Vol_;
+    Real smoothing_length_{particles_->getSPHAdaptation().ReferenceSmoothingLength()};
+    StdVec<Vecd *> contact_pos_;
+    StdVec<Real *> contact_Vol_;
 };
 
 class ErodedToSoilTransfer : public LocalDynamics, public DataDelegateContact
@@ -614,6 +676,7 @@ int main(int ac, char *av[])
     //------------------------------------------------------------------
     InnerRelation water_inner(water_block);
     ContactRelation water_fluid_contact(water_block, {&eroded_soil, &soil_block});
+    ContactRelation water_soil_contact(water_block, {&soil_block});
     ContactRelation water_wall_contact(water_block, {&wall_boundary});
 
     InnerRelation eroded_inner(eroded_soil);
@@ -662,6 +725,8 @@ int main(int ac, char *av[])
     InteractionWithUpdate<fluid_dynamics::BaseDensitySummationComplex<Inner<>, Contact<>, Contact<>>>
         eroded_density_by_summation(eroded_inner, eroded_fluid_contact, eroded_wall_contact);
 
+    InteractionDynamics<FluidSoilRepulsion> water_soil_repulsion(water_soil_contact, soil_repulsion_strength);
+    InteractionDynamics<FluidSoilRepulsion> eroded_soil_repulsion(eroded_soil_contact, soil_repulsion_strength);
     InteractionDynamics<fluid_dynamics::DistanceFromWall> eroded_distance_to_wall(eroded_wall_contact);
     InteractionWithUpdate<fluid_dynamics::VelocityGradientWithWall<NoKernelCorrection>> eroded_velocity_gradient(eroded_inner, eroded_wall_contact);
     SimpleDynamics<fluid_dynamics::ShearRateDependentViscosity> eroded_shear_rate_viscosity(eroded_soil);
@@ -686,6 +751,8 @@ int main(int ac, char *av[])
     body_states_recording.addToWrite<int>(soil_block, "ErosionState");
     body_states_recording.addToWrite<int>(eroded_soil, "ErosionState");
     body_states_recording.addToWrite<Real>(soil_block, "Pressure");
+    SimpleDynamics<continuum_dynamics::AccDeviatoricPlasticStrain> accumulated_deviatoric_plastic_strain(soil_block);
+    body_states_recording.addToWrite<Real>(soil_block, "AccDeviatoricPlasticStrain");
     PvdWriter pvd_writer(sph_system.getIOEnvironment().OutputFolder(),
                          {"WaterBody", "SoilBody", "ErodedSoil"});
 
@@ -717,6 +784,7 @@ int main(int ac, char *av[])
     //	First output.
     //------------------------------------------------------------------
     std::cout << "System initialized, start time-stepping..." << std::endl;
+    accumulated_deviatoric_plastic_strain.exec();
     body_states_recording.writeToFile();
     pvd_writer.record(0.0);
 
@@ -766,6 +834,8 @@ int main(int ac, char *av[])
                 water_density_relaxation.exec(dt);
                 eroded_density_relaxation.exec(dt);
 
+                water_soil_repulsion.exec();
+                eroded_soil_repulsion.exec();
                 eroded_distance_to_wall.exec();
                 eroded_velocity_gradient.exec();
                 eroded_shear_rate_viscosity.exec();
@@ -795,6 +865,7 @@ int main(int ac, char *av[])
             eroded_soil.updateCellLinkedList();
             soil_block.updateCellLinkedList();
             water_fluid_contact.updateConfiguration();
+            water_soil_contact.updateConfiguration();
             water_wall_contact.updateConfiguration();
             eroded_fluid_contact.updateConfiguration();
             eroded_wall_contact.updateConfiguration();
@@ -803,6 +874,7 @@ int main(int ac, char *av[])
             soil_wall_contact.updateConfiguration();
             correction_matrix.exec();
         }
+        accumulated_deviatoric_plastic_strain.exec();
         body_states_recording.writeToFile();
         pvd_writer.record(physical_time);
     }
