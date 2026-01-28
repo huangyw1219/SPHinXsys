@@ -707,13 +707,14 @@ int main(int ac, char *av[])
     //------------------------------------------------------------------
     Real &physical_time = *sph_system.getSystemVariableDataByName<Real>("PhysicalTime");
     size_t number_of_iterations = 0;
-    int screen_output_interval = 200;
+    int screen_output_interval = 20;
     Real End_Time = 2.0;
     Real D_Time = End_Time / 50.0;
 
     //------------------------------------------------------------------
     //	First output.
     //------------------------------------------------------------------
+    std::cout << "System initialized, start time-stepping..." << std::endl;
     body_states_recording.writeToFile();
     pvd_writer.record(0.0);
 
