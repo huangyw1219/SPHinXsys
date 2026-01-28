@@ -117,8 +117,8 @@ class WaterInitialCondition : public fluid_dynamics::FluidInitialCondition
         : fluid_dynamics::FluidInitialCondition(water_body),
           water_height_(water_height),
           pos_(particles_->getVariableDataByName<Vecd>("Position")),
-          rho_(particles_->getVariableDataByName<Real>("Density")),
-          p_(particles_->getVariableDataByName<Real>("Pressure")),
+          rho_(particles_->registerStateVariableData<Real>("Density")),
+          p_(particles_->registerStateVariableData<Real>("Pressure")),
           vel_(particles_->getVariableDataByName<Vecd>("Velocity")) {};
 
     void update(size_t index_i, Real dt)
