@@ -20,7 +20,7 @@ Real soil_flat_length = 2.0;
 Real soil_slope_end = 3.0;
 Real water_length = 1.0;
 Real water_height = 0.1;
-Real particle_spacing_ref = 0.01; /**< Initial reference particle spacing. */
+Real particle_spacing_ref = 0.0035; /**< Initial reference particle spacing. */
 Real BW = particle_spacing_ref * 4.0;
 BoundingBoxd system_domain_bounds(Vec2d(-BW, -BW), Vec2d(DL + BW, DH + BW));
 //----------------------------------------------------------------------
