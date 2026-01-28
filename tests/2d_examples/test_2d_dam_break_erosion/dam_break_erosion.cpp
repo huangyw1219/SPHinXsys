@@ -190,8 +190,8 @@ int main(int ac, char *av[])
         water_block_inner, water_fluid_contact, water_wall_contact);
     Dynamics1Level<fluid_dynamics::MultiPhaseIntegration2ndHalfWithWallRiemann> water_density_relaxation(
         water_block_inner, water_fluid_contact, water_wall_contact);
-    InteractionWithUpdate<fluid_dynamics::BaseDensitySummationComplex<Inner<>, Contact<>, Contact<Wall>>>
-        water_density_by_summation(water_block_inner, water_fluid_contact, water_wall_contact);
+    InteractionWithUpdate<fluid_dynamics::DensitySummationComplex> water_density_by_summation(
+        water_block_inner, water_fluid_contact);
     ReduceDynamics<fluid_dynamics::AcousticTimeStep> water_acoustic_time_step(water_block, 0.4);
 
     InteractionWithUpdate<LinearGradientCorrectionMatrixComplex> eroded_correction_matrix(eroded_inner, eroded_wall_contact);
@@ -199,8 +199,8 @@ int main(int ac, char *av[])
         eroded_inner, eroded_fluid_contact, eroded_wall_contact);
     Dynamics1Level<fluid_dynamics::MultiPhaseIntegration2ndHalfWithWallRiemann> eroded_density_relaxation(
         eroded_inner, eroded_fluid_contact, eroded_wall_contact);
-    InteractionWithUpdate<fluid_dynamics::BaseDensitySummationComplex<Inner<>, Contact<>, Contact<Wall>>>
-        eroded_density_by_summation(eroded_inner, eroded_fluid_contact, eroded_wall_contact);
+    InteractionWithUpdate<fluid_dynamics::DensitySummationComplex> eroded_density_by_summation(
+        eroded_inner, eroded_fluid_contact);
     InteractionWithUpdate<fluid_dynamics::VelocityGradientWithWall<LinearGradientCorrection>> eroded_vel_grad(
         eroded_inner, eroded_wall_contact);
     SimpleDynamics<fluid_dynamics::ShearRateDependentViscosity> eroded_shear_viscosity(eroded_soil);
