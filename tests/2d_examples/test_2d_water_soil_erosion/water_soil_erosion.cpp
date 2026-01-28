@@ -708,6 +708,8 @@ int main(int ac, char *av[])
     Real &physical_time = *sph_system.getSystemVariableDataByName<Real>("PhysicalTime");
     size_t number_of_iterations = 0;
     int screen_output_interval = 20;
+    Real dt_min = 1.0e-6;
+    bool warned_small_dt = false;
     Real End_Time = 2.0;
     Real D_Time = End_Time / 50.0;
 
@@ -727,6 +729,15 @@ int main(int ac, char *av[])
         while (integration_time < D_Time)
         {
             Real Dt = SMIN(water_advection_time_step.exec(), eroded_advection_time_step.exec());
+            if (Dt < dt_min)
+            {
+                if (!warned_small_dt)
+                {
+                    std::cout << "Warning: Dt too small (" << Dt << "), clamping to " << dt_min << ".\n";
+                    warned_small_dt = true;
+                }
+                Dt = dt_min;
+            }
 
             water_density_by_summation.exec();
             eroded_density_by_summation.exec();
@@ -739,6 +750,15 @@ int main(int ac, char *av[])
             while (relaxation_time < Dt)
             {
                 Real dt = SMIN(SMIN(water_acoustic_time_step.exec(), eroded_acoustic_time_step.exec()), soil_acoustic_time_step.exec());
+                if (dt < dt_min)
+                {
+                    if (!warned_small_dt)
+                    {
+                        std::cout << "Warning: dt too small (" << dt << "), clamping to " << dt_min << ".\n";
+                        warned_small_dt = true;
+                    }
+                    dt = dt_min;
+                }
 
                 water_pressure_relaxation.exec(dt);
                 eroded_pressure_relaxation.exec(dt);
