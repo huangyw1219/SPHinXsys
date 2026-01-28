@@ -761,8 +761,6 @@ int main(int ac, char *av[])
                 soil_density_relaxation.exec(dt);
                 soil_displacement.exec(dt);
 
-                soil_average_velocity.exec(dt);
-
                 soil_to_eroded.exec(dt);
                 eroded_to_soil.exec(dt);
 
