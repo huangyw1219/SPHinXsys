@@ -126,7 +126,7 @@ class ErosionIdentification : public LocalDynamics, public DataDelegateContact
         }
     };
 
-    void update(size_t index_i, Real dt = 0.0)
+    void interaction(size_t index_i, Real dt = 0.0)
     {
         erosion_flag_[index_i] = 0;
         Vecd avg_vel = Vecd::Zero();

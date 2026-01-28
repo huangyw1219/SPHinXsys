@@ -198,7 +198,7 @@ int main(int ac, char *av[])
     InteractionWithUpdate<fluid_dynamics::NonNewtonianViscousForceWithWall<AngularConservative>> eroded_viscous_force(eroded_inner, eroded_contact);
     ReduceDynamics<fluid_dynamics::AcousticTimeStep> eroded_acoustic_time_step(eroded_soil, 0.4);
 
-    InteractionWithUpdate<ErosionIdentification> erosion_identification(soil_water_contact, erosion_velocity_threshold);
+    InteractionDynamics<ErosionIdentification> erosion_identification(soil_water_contact, erosion_velocity_threshold);
     SimpleDynamics<DepositionIdentification> deposition_identification(eroded_soil, deposition_velocity_threshold);
     SimpleDynamics<UpdateDisplacement> update_displacement(soil_block);
 
