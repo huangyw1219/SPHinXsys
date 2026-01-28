@@ -199,6 +199,8 @@ int main(int ac, char *av[])
         water_block_inner, water_fluid_contact, water_wall_contact);
     InteractionWithUpdate<fluid_dynamics::DensitySummationComplex> water_density_by_summation(
         water_block_inner, water_fluid_contact);
+    InteractionWithUpdate<fluid_dynamics::MultiPhaseTransportVelocityCorrectionComplex<AllParticles>>
+        water_transport_correction(water_block_inner, water_fluid_contact, water_wall_contact);
     InteractionDynamics<fluid_dynamics::BoundingFromWall> water_near_wall_bounding(water_wall_contact);
     ReduceDynamics<fluid_dynamics::AcousticTimeStep> water_acoustic_time_step(water_block, 0.4);
 
@@ -269,6 +271,7 @@ int main(int ac, char *av[])
             soil_transport_velocity_correction.exec();
 
             water_density_by_summation.exec();
+            water_transport_correction.exec();
             water_near_wall_bounding.exec();
             eroded_density_by_summation.exec();
 
