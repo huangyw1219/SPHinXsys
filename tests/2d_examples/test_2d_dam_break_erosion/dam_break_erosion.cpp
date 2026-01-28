@@ -263,7 +263,11 @@ int main(int ac, char *av[])
             eroded_density_by_summation.exec();
 
             Real dt = SMIN(soil_acoustic_time_step.exec(), water_acoustic_time_step.exec());
-            dt = SMIN(dt, eroded_acoustic_time_step.exec());
+            bool has_eroded_particles = eroded_soil.getBaseParticles().TotalRealParticles() > 0;
+            if (has_eroded_particles)
+            {
+                dt = SMIN(dt, eroded_acoustic_time_step.exec());
+            }
 
             soil_stress_diffusion.exec();
             soil_stress_relaxation.exec(dt);
@@ -272,12 +276,15 @@ int main(int ac, char *av[])
             water_pressure_relaxation.exec(dt);
             water_density_relaxation.exec(dt);
 
-            eroded_distance_to_wall.exec();
-            eroded_vel_grad.exec();
-            eroded_shear_viscosity.exec();
-            eroded_viscous_force.exec();
-            eroded_pressure_relaxation.exec(dt);
-            eroded_density_relaxation.exec(dt);
+            if (has_eroded_particles)
+            {
+                eroded_distance_to_wall.exec();
+                eroded_vel_grad.exec();
+                eroded_shear_viscosity.exec();
+                eroded_viscous_force.exec();
+                eroded_pressure_relaxation.exec(dt);
+                eroded_density_relaxation.exec(dt);
+            }
 
             erosion_identification.exec();
             deposition_identification.exec();
