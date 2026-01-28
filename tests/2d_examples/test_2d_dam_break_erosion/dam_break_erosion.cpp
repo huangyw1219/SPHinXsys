@@ -206,6 +206,7 @@ int main(int ac, char *av[])
     SimpleDynamics<fluid_dynamics::ShearRateDependentViscosity> eroded_shear_viscosity(eroded_soil);
     InteractionWithUpdate<fluid_dynamics::MultiPhaseViscousForceWithWall> eroded_viscous_force(
         eroded_inner, eroded_fluid_contact, eroded_wall_contact);
+    InteractionDynamics<fluid_dynamics::DistanceFromWall> eroded_distance_to_wall(eroded_wall_contact);
     ReduceDynamics<fluid_dynamics::AcousticTimeStep> eroded_acoustic_time_step(eroded_soil, 0.4);
 
     InteractionDynamics<ErosionIdentification> erosion_identification(soil_water_contact, erosion_velocity_threshold);
@@ -271,6 +272,7 @@ int main(int ac, char *av[])
             water_pressure_relaxation.exec(dt);
             water_density_relaxation.exec(dt);
 
+            eroded_distance_to_wall.exec();
             eroded_vel_grad.exec();
             eroded_shear_viscosity.exec();
             eroded_viscous_force.exec();
