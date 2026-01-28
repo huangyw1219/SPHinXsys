@@ -613,12 +613,12 @@ int main(int ac, char *av[])
     //	Define body relation map.
     //------------------------------------------------------------------
     InnerRelation water_inner(water_block);
-    ContactRelation water_eroded_contact(water_block, {&eroded_soil});
-    ContactRelation water_wall_contact(water_block, {&wall_boundary, &soil_block});
+    ContactRelation water_fluid_contact(water_block, {&eroded_soil, &soil_block});
+    ContactRelation water_wall_contact(water_block, {&wall_boundary});
 
     InnerRelation eroded_inner(eroded_soil);
-    ContactRelation eroded_water_contact(eroded_soil, {&water_block});
-    ContactRelation eroded_wall_contact(eroded_soil, {&wall_boundary, &soil_block});
+    ContactRelation eroded_fluid_contact(eroded_soil, {&water_block, &soil_block});
+    ContactRelation eroded_wall_contact(eroded_soil, {&wall_boundary});
     ContactRelation eroded_soil_contact(eroded_soil, {&soil_block});
 
     InnerRelation soil_inner(soil_block);
@@ -650,19 +650,19 @@ int main(int ac, char *av[])
     ReduceDynamics<fluid_dynamics::AcousticTimeStep> soil_acoustic_time_step(soil_block, 0.4);
 
     Dynamics1Level<fluid_dynamics::MultiPhaseIntegration1stHalfWithWallRiemann>
-        water_pressure_relaxation(water_inner, water_eroded_contact, water_wall_contact);
+        water_pressure_relaxation(water_inner, water_fluid_contact, water_wall_contact);
     Dynamics1Level<fluid_dynamics::MultiPhaseIntegration2ndHalfWithWallRiemann>
-        water_density_relaxation(water_inner, water_eroded_contact, water_wall_contact);
+        water_density_relaxation(water_inner, water_fluid_contact, water_wall_contact);
 
     Dynamics1Level<fluid_dynamics::MultiPhaseIntegration1stHalfWithWallRiemann>
-        eroded_pressure_relaxation(eroded_inner, eroded_water_contact, eroded_wall_contact);
+        eroded_pressure_relaxation(eroded_inner, eroded_fluid_contact, eroded_wall_contact);
     Dynamics1Level<fluid_dynamics::MultiPhaseIntegration2ndHalfWithWallRiemann>
-        eroded_density_relaxation(eroded_inner, eroded_water_contact, eroded_wall_contact);
+        eroded_density_relaxation(eroded_inner, eroded_fluid_contact, eroded_wall_contact);
 
     InteractionWithUpdate<fluid_dynamics::DensitySummationComplexFreeSurface>
         water_density_by_summation(water_inner, water_wall_contact);
     InteractionWithUpdate<fluid_dynamics::BaseDensitySummationComplex<Inner<>, Contact<>, Contact<>>>
-        eroded_density_by_summation(eroded_inner, eroded_water_contact, eroded_wall_contact);
+        eroded_density_by_summation(eroded_inner, eroded_fluid_contact, eroded_wall_contact);
 
     InteractionWithUpdate<fluid_dynamics::VelocityGradientWithWall<NoKernelCorrection>> eroded_velocity_gradient(eroded_inner, eroded_wall_contact);
     SimpleDynamics<fluid_dynamics::ShearRateDependentViscosity> eroded_shear_rate_viscosity(eroded_soil);
@@ -779,9 +779,9 @@ int main(int ac, char *av[])
             water_block.updateCellLinkedList();
             eroded_soil.updateCellLinkedList();
             soil_block.updateCellLinkedList();
-            water_eroded_contact.updateConfiguration();
+            water_fluid_contact.updateConfiguration();
             water_wall_contact.updateConfiguration();
-            eroded_water_contact.updateConfiguration();
+            eroded_fluid_contact.updateConfiguration();
             eroded_wall_contact.updateConfiguration();
             eroded_soil_contact.updateConfiguration();
             soil_fluid_contact.updateConfiguration();
