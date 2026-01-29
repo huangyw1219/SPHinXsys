@@ -133,6 +133,7 @@ int main(int ac, char *av[])
     auto &soil_particles = soil_block.getBaseParticles();
     int *soil_erosion_state = soil_particles.registerStateVariableData<int>("ErosionState");
     soil_particles.addEvolvingVariable<int>("ErosionState");
+    size_t initial_soil_particle_count = soil_particles.TotalRealParticles();
     for (size_t i = 0; i < soil_particles.TotalRealParticles(); ++i)
         soil_erosion_state[i] = 0;
 
@@ -308,6 +309,13 @@ int main(int ac, char *av[])
                 std::cout << std::fixed << std::setprecision(9) << "N=" << number_of_iterations << std::setprecision(4)
                           << "\tTime = " << physical_time << std::scientific << "\tdt = " << dt << "\n";
             }
+            size_t current_soil_particles = soil_particles.TotalRealParticles();
+            size_t current_eroded_particles = eroded_particles.TotalRealParticles();
+            std::cout << std::fixed << std::setprecision(0)
+                      << "SoilInit=" << initial_soil_particle_count
+                      << "\tSoilRemain=" << current_soil_particles
+                      << "\tEroded=" << current_eroded_particles
+                      << "\tSum=" << current_soil_particles + current_eroded_particles << "\n";
             number_of_iterations++;
 
             soil_block.updateCellLinkedList();

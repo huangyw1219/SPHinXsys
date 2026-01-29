@@ -8,7 +8,7 @@ using namespace SPH;
 //----------------------------------------------------------------------
 //	Basic geometry parameters and numerical setup.
 //----------------------------------------------------------------------
-Real DL = 4.0;                       /**< Tank length. */
+Real DL = 3.0;                       /**< Tank length. */
 Real DH = 0.52;                      /**< Tank height. */
 Real particle_spacing_ref = 0.0035;  /**< Initial reference particle spacing. */
 Real BW = particle_spacing_ref * 4;  /**< Extending width for boundary conditions. */
@@ -49,9 +49,9 @@ std::vector<Vecd> soil_shape{
     Vecd(0.0, 0.0),
     Vecd(0.0, 0.3),
     Vecd(2.0, 0.3),
+    Vecd(2.4, 0.1),
     Vecd(3.0, 0.1),
-    Vecd(4.0, 0.1),
-    Vecd(4.0, 0.0),
+    Vecd(3.0, 0.0),
     Vecd(0.0, 0.0)};
 
 std::vector<Vecd> water_shape{
