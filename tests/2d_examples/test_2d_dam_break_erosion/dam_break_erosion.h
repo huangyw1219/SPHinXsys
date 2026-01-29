@@ -110,36 +110,6 @@ class SoilInitialCondition : public continuum_dynamics::ContinuumInitialConditio
     };
 };
 
-class WaterInitialCondition : public fluid_dynamics::FluidInitialCondition
-{
-  public:
-    explicit WaterInitialCondition(SPHBody &water_body, Real water_height)
-        : fluid_dynamics::FluidInitialCondition(water_body),
-          water_height_(water_height),
-          pos_(particles_->getVariableDataByName<Vecd>("Position")),
-          rho_(particles_->registerStateVariableData<Real>("Density")),
-          p_(particles_->registerStateVariableData<Real>("Pressure")),
-          vel_(particles_->getVariableDataByName<Vecd>("Velocity")),
-          mass_(particles_->getVariableDataByName<Real>("Mass")),
-          Vol_(particles_->getVariableDataByName<Real>("VolumetricMeasure")) {};
-
-    void update(size_t index_i, Real dt)
-    {
-        Real depth = SMAX(water_height_ - pos_[index_i][1], 0.0);
-        Real pressure = rho0_f * gravity_g * depth;
-        p_[index_i] = pressure;
-        rho_[index_i] = rho0_f + pressure / (c_f * c_f);
-        mass_[index_i] = rho_[index_i] * Vol_[index_i];
-        vel_[index_i] = Vecd::Zero();
-    };
-
-  protected:
-    Real water_height_;
-    Vecd *pos_;
-    Real *rho_, *p_;
-    Vecd *vel_;
-    Real *mass_, *Vol_;
-};
 //----------------------------------------------------------------------
 //	Erosion identification based on water velocity.
 //----------------------------------------------------------------------
