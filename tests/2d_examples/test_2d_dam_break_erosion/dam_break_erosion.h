@@ -118,7 +118,7 @@ class WaterInitialCondition : public LocalDynamics
           water_height_(water_height),
           pos_(particles_->getVariableDataByName<Vecd>("Position")),
           p_(particles_->registerStateVariableData<Real>("Pressure")),
-          vel_(particles_->getVariableDataByName<Vecd>("Velocity")) {};
+          vel_(particles_->registerStateVariableData<Vecd>("Velocity")) {};
 
     void update(size_t index_i, Real dt)
     {
