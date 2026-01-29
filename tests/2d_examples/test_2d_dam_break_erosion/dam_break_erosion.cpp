@@ -159,8 +159,7 @@ int main(int ac, char *av[])
     InnerRelation water_block_inner(water_block);
     ContactRelation water_wall_contact(water_block, {&wall_boundary});
     ContactRelation water_fluid_contact(water_block, {&eroded_soil, &soil_block});
-    ContactRelation water_soil_contact(water_block, {&soil_block});
-    ComplexRelation water_block_complex(water_block_inner, {&water_fluid_contact, &water_wall_contact, &water_soil_contact});
+    ComplexRelation water_block_complex(water_block_inner, {&water_fluid_contact, &water_wall_contact});
 
     InnerRelation eroded_inner(eroded_soil);
     ContactRelation eroded_wall_contact(eroded_soil, {&wall_boundary});
@@ -194,7 +193,6 @@ int main(int ac, char *av[])
     InteractionWithUpdate<fluid_dynamics::DensitySummationComplexFreeSurface> water_density_by_summation(
         water_block_inner, water_wall_contact);
     InteractionDynamics<fluid_dynamics::BoundingFromWall> water_near_wall_bounding(water_wall_contact);
-    InteractionDynamics<fluid_dynamics::BoundingFromWall> water_soil_bounding(water_soil_contact);
     ReduceDynamics<fluid_dynamics::AcousticTimeStep> water_acoustic_time_step(water_block, 0.4);
 
     InteractionWithUpdate<LinearGradientCorrectionMatrixComplex> eroded_correction_matrix(eroded_inner, eroded_wall_contact);
@@ -219,6 +217,13 @@ int main(int ac, char *av[])
 
     SimpleDynamics<continuum_dynamics::VerticalStress> vertical_stress(soil_block);
     SimpleDynamics<continuum_dynamics::AccDeviatoricPlasticStrain> accumulated_deviatoric_plastic_strain(soil_block);
+
+    NearShapeSurface near_surface_soil(water_block, makeShared<Soil>("SoilBoundary"));
+    fluid_dynamics::StaticConfinement confinement_condition_soil(near_surface_soil);
+    water_density_by_summation.post_processes_.push_back(&confinement_condition_soil.density_summation_);
+    water_pressure_relaxation.post_processes_.push_back(&confinement_condition_soil.pressure_relaxation_);
+    water_density_relaxation.post_processes_.push_back(&confinement_condition_soil.density_relaxation_);
+    water_density_relaxation.post_processes_.push_back(&confinement_condition_soil.surface_bounding_);
 
     BodyStatesRecordingToVtp body_states_recording(sph_system);
     body_states_recording.addToWrite<Real>(soil_block, "Pressure");
@@ -265,7 +270,6 @@ int main(int ac, char *av[])
 
             water_density_by_summation.exec();
             water_near_wall_bounding.exec();
-            water_soil_bounding.exec();
             eroded_density_by_summation.exec();
 
             Real dt = SMIN(soil_acoustic_time_step.exec(), water_acoustic_time_step.exec());
