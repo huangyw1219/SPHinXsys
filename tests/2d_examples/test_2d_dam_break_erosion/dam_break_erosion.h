@@ -40,6 +40,7 @@ Real hb_yield_stress = 0.0;
 // Erosion/deposition thresholds (velocity-based, from paper)
 Real erosion_velocity_threshold = 0.2;
 Real deposition_velocity_threshold = 0.05;
+Real eroded_drag_coeff = 5.0;
 
 Real particle_volume = particle_spacing_ref * particle_spacing_ref;
 //----------------------------------------------------------------------

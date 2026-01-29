@@ -9,6 +9,47 @@
 
 namespace
 {
+class ShearDragTowardContact : public LocalDynamics, public DataDelegateContact
+{
+  public:
+    ShearDragTowardContact(BaseContactRelation &contact_relation, Real drag_coeff)
+        : LocalDynamics(contact_relation.getSPHBody()), DataDelegateContact(contact_relation),
+          vel_(particles_->getVariableDataByName<Vecd>("Velocity")),
+          drag_coeff_(drag_coeff)
+    {
+        for (size_t k = 0; k != contact_particles_.size(); ++k)
+        {
+            contact_vel_.push_back(contact_particles_[k]->getVariableDataByName<Vecd>("Velocity"));
+        }
+    };
+
+    void interaction(size_t index_i, Real dt = 0.0)
+    {
+        Vecd avg_vel = Vecd::Zero();
+        size_t count = 0;
+        for (size_t k = 0; k < contact_configuration_.size(); ++k)
+        {
+            Vecd *vel_k = contact_vel_[k];
+            Neighborhood &contact_neighborhood = (*contact_configuration_[k])[index_i];
+            for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
+            {
+                size_t index_j = contact_neighborhood.j_[n];
+                avg_vel += vel_k[index_j];
+                count++;
+            }
+        }
+        if (count == 0)
+            return;
+        avg_vel /= Real(count);
+        vel_[index_i] += -drag_coeff_ * (vel_[index_i] - avg_vel) * dt;
+    };
+
+  protected:
+    Vecd *vel_;
+    StdVec<Vecd *> contact_vel_;
+    Real drag_coeff_;
+};
+
 void erodeSoilParticles(RealBody &soil_body, FluidBody &eroded_body)
 {
     auto &soil_particles = soil_body.getBaseParticles();
@@ -191,8 +232,8 @@ int main(int ac, char *av[])
         water_block_inner, water_fluid_contact, water_wall_contact);
     Dynamics1Level<fluid_dynamics::MultiPhaseIntegration2ndHalfWithWallRiemann> water_density_relaxation(
         water_block_inner, water_fluid_contact, water_wall_contact);
-    InteractionWithUpdate<fluid_dynamics::BaseDensitySummationComplex<Inner<>, Contact<>, Contact<>>>
-        water_density_by_summation(water_block_inner, water_fluid_contact, water_wall_contact);
+    InteractionWithUpdate<fluid_dynamics::DensitySummationComplexFreeSurface>
+        water_density_by_summation(water_block_inner, water_wall_contact);
     InteractionWithUpdate<fluid_dynamics::MultiPhaseTransportVelocityCorrectionComplex<AllParticles>>
         water_transport_correction(water_block_inner, water_fluid_contact, water_wall_contact);
     DampingWithRandomChoice<InteractionSplit<DampingPairwiseWithWall<Vec2d, FixedDampingRate>>>
@@ -217,6 +258,7 @@ int main(int ac, char *av[])
     ReduceDynamics<fluid_dynamics::AcousticTimeStep> eroded_acoustic_time_step(eroded_soil, 0.4);
 
     InteractionDynamics<ErosionIdentification> erosion_identification(soil_water_contact, erosion_velocity_threshold);
+    InteractionDynamics<ShearDragTowardContact> eroded_shear_drag(eroded_fluid_contact, eroded_drag_coeff);
     SimpleDynamics<DepositionIdentification> deposition_identification(eroded_soil, deposition_velocity_threshold);
     SimpleDynamics<UpdateDisplacement> update_displacement(soil_block);
 
@@ -284,6 +326,10 @@ int main(int ac, char *av[])
                 dt = SMIN(dt, eroded_acoustic_time_step.exec());
             }
 
+            if (has_eroded_particles)
+            {
+                eroded_shear_drag.exec(dt);
+            }
             soil_stress_diffusion.exec();
             soil_stress_relaxation.exec(dt);
             soil_density_relaxation.exec(dt);
