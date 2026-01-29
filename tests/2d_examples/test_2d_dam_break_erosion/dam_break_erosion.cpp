@@ -232,8 +232,8 @@ int main(int ac, char *av[])
         water_block_inner, water_fluid_contact, water_wall_contact);
     Dynamics1Level<fluid_dynamics::MultiPhaseIntegration2ndHalfWithWallRiemann> water_density_relaxation(
         water_block_inner, water_fluid_contact, water_wall_contact);
-    InteractionWithUpdate<fluid_dynamics::DensitySummationComplexFreeSurface>
-        water_density_by_summation(water_block_inner, water_wall_contact);
+    InteractionWithUpdate<fluid_dynamics::BaseDensitySummationComplex<Inner<>, Contact<>, Contact<>>>
+        water_density_by_summation(water_block_inner, water_fluid_contact, water_wall_contact);
     InteractionWithUpdate<fluid_dynamics::MultiPhaseTransportVelocityCorrectionComplex<AllParticles>>
         water_transport_correction(water_block_inner, water_fluid_contact, water_wall_contact);
     DampingWithRandomChoice<InteractionSplit<DampingPairwiseWithWall<Vec2d, FixedDampingRate>>>
