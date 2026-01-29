@@ -159,12 +159,12 @@ int main(int ac, char *av[])
 
     InnerRelation water_block_inner(water_block);
     ContactRelation water_wall_contact(water_block, {&wall_boundary});
-    ContactRelation water_fluid_contact(water_block, {&eroded_soil, &soil_block});
+    ContactRelation water_fluid_contact(water_block, {&eroded_soil});
     ComplexRelation water_block_complex(water_block_inner, {&water_fluid_contact, &water_wall_contact});
 
     InnerRelation eroded_inner(eroded_soil);
     ContactRelation eroded_wall_contact(eroded_soil, {&wall_boundary});
-    ContactRelation eroded_fluid_contact(eroded_soil, {&water_block, &soil_block});
+    ContactRelation eroded_fluid_contact(eroded_soil, {&water_block});
     ComplexRelation eroded_complex(eroded_inner, {&eroded_fluid_contact, &eroded_wall_contact});
 
     Gravity gravity(Vecd(0.0, -gravity_g));
@@ -192,8 +192,8 @@ int main(int ac, char *av[])
         water_block_inner, water_fluid_contact, water_wall_contact);
     Dynamics1Level<fluid_dynamics::MultiPhaseIntegration2ndHalfWithWallRiemann> water_density_relaxation(
         water_block_inner, water_fluid_contact, water_wall_contact);
-    InteractionWithUpdate<fluid_dynamics::DensitySummationComplexFreeSurface> water_density_by_summation(
-        water_block_inner, water_wall_contact);
+    InteractionWithUpdate<fluid_dynamics::BaseDensitySummationComplex<Inner<>, Contact<>, Contact<>>>
+        water_density_by_summation(water_block_inner, water_fluid_contact, water_wall_contact);
     DampingWithRandomChoice<InteractionSplit<DampingPairwiseWithWall<Vec2d, FixedDampingRate>>>
         water_damping(0.2, DynamicsArgs(water_block_inner, "Velocity", mu_f), DynamicsArgs(water_wall_contact, "Velocity", mu_f));
     InteractionDynamics<fluid_dynamics::BoundingFromWall> water_near_wall_bounding(water_wall_contact);
@@ -204,8 +204,8 @@ int main(int ac, char *av[])
         eroded_inner, eroded_fluid_contact, eroded_wall_contact);
     Dynamics1Level<fluid_dynamics::MultiPhaseIntegration2ndHalfWithWallRiemann> eroded_density_relaxation(
         eroded_inner, eroded_fluid_contact, eroded_wall_contact);
-    InteractionWithUpdate<fluid_dynamics::DensitySummationComplex> eroded_density_by_summation(
-        eroded_inner, eroded_fluid_contact);
+    InteractionWithUpdate<fluid_dynamics::BaseDensitySummationComplex<Inner<>, Contact<>, Contact<>>>
+        eroded_density_by_summation(eroded_inner, eroded_fluid_contact, eroded_wall_contact);
     InteractionDynamics<fluid_dynamics::DistanceFromWall> eroded_distance_to_wall(eroded_wall_contact);
     InteractionDynamics<fluid_dynamics::BoundingFromWall> eroded_near_wall_bounding(eroded_wall_contact);
     InteractionWithUpdate<fluid_dynamics::VelocityGradientWithWall<LinearGradientCorrection>> eroded_vel_grad(
