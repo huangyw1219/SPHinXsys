@@ -204,6 +204,47 @@ class DepositionIdentification : public LocalDynamics
     Real threshold_;
 };
 
+class InterfaceShearDrag : public LocalDynamics, public DataDelegateContact
+{
+  public:
+    InterfaceShearDrag(BaseContactRelation &contact_relation, Real drag_coeff)
+        : LocalDynamics(contact_relation.getSPHBody()), DataDelegateContact(contact_relation),
+          vel_(particles_->getVariableDataByName<Vecd>("Velocity")),
+          drag_coeff_(drag_coeff)
+    {
+        for (size_t k = 0; k != contact_particles_.size(); ++k)
+        {
+            contact_vel_.push_back(contact_particles_[k]->getVariableDataByName<Vecd>("Velocity"));
+        }
+    }
+
+    void interaction(size_t index_i, Real dt = 0.0)
+    {
+        Vecd avg_vel = Vecd::Zero();
+        size_t count = 0;
+        for (size_t k = 0; k < contact_configuration_.size(); ++k)
+        {
+            Vecd *vel_k = contact_vel_[k];
+            Neighborhood &contact_neighborhood = (*contact_configuration_[k])[index_i];
+            for (size_t n = 0; n != contact_neighborhood.current_size_; ++n)
+            {
+                size_t index_j = contact_neighborhood.j_[n];
+                avg_vel += vel_k[index_j];
+                count++;
+            }
+        }
+        if (count == 0)
+            return;
+        avg_vel /= Real(count);
+        vel_[index_i] += -drag_coeff_ * (vel_[index_i] - avg_vel) * dt;
+    }
+
+  protected:
+    Vecd *vel_;
+    StdVec<Vecd *> contact_vel_;
+    Real drag_coeff_;
+};
+
 class UpdateDisplacement : public LocalDynamics
 {
   public:

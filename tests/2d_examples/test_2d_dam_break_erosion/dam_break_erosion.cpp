@@ -158,6 +158,7 @@ int main(int ac, char *av[])
     InnerRelation soil_block_inner(soil_block);
     ContactRelation soil_block_contact(soil_block, {&wall_boundary});
     ContactRelation soil_water_contact(soil_block, {&water_block});
+    ContactRelation water_soil_contact(water_block, {&soil_block});
     ComplexRelation soil_block_complex(soil_block_inner, soil_block_contact);
 
     InnerRelation water_block_inner(water_block);
@@ -220,6 +221,8 @@ int main(int ac, char *av[])
     ReduceDynamics<fluid_dynamics::AcousticTimeStep> eroded_acoustic_time_step(eroded_soil, 0.4);
 
     InteractionDynamics<ErosionIdentification> erosion_identification(soil_water_contact, erosion_velocity_threshold);
+    InteractionDynamics<InterfaceShearDrag> water_shear_drag(water_soil_contact, 5.0);
+    InteractionDynamics<InterfaceShearDrag> soil_shear_drag(soil_water_contact, 5.0);
     SimpleDynamics<DepositionIdentification> deposition_identification(eroded_soil, deposition_velocity_threshold);
     SimpleDynamics<UpdateDisplacement> update_displacement(soil_block);
 
@@ -274,6 +277,8 @@ int main(int ac, char *av[])
             water_density_by_summation.exec();
             water_damping.exec();
             water_near_wall_bounding.exec();
+            water_shear_drag.exec(dt);
+            soil_shear_drag.exec(dt);
             eroded_density_by_summation.exec();
 
             Real dt = SMIN(soil_acoustic_time_step.exec(), water_acoustic_time_step.exec());
@@ -322,6 +327,8 @@ int main(int ac, char *av[])
             soil_block_complex.updateConfiguration();
             water_block_complex.updateConfiguration();
             eroded_complex.updateConfiguration();
+            soil_water_contact.updateConfiguration();
+            water_soil_contact.updateConfiguration();
             soil_water_contact.updateConfiguration();
             soil_correction_matrix.exec();
             water_correction_matrix.exec();
