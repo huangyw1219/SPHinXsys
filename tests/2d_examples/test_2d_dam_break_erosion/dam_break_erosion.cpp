@@ -247,11 +247,6 @@ int main(int ac, char *av[])
     eroded_correction_matrix.exec();
     update_displacement.exec();
 
-    Real init_dt = SMIN(soil_acoustic_time_step.exec(), water_acoustic_time_step.exec());
-    water_density_by_summation.exec();
-    water_pressure_relaxation.exec(init_dt);
-    water_density_relaxation.exec(init_dt);
-
     Real &physical_time = *sph_system.getSystemVariableDataByName<Real>("PhysicalTime");
     size_t number_of_iterations = 0;
     int screen_output_interval = 500;
