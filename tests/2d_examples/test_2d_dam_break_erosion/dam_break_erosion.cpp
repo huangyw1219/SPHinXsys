@@ -247,15 +247,6 @@ int main(int ac, char *av[])
     eroded_correction_matrix.exec();
     update_displacement.exec();
 
-    const int initialization_iterations = 5;
-    for (int iter = 0; iter < initialization_iterations; ++iter)
-    {
-        water_density_by_summation.exec();
-        Real init_dt = water_acoustic_time_step.exec();
-        water_pressure_relaxation.exec(init_dt);
-        water_density_relaxation.exec(init_dt);
-    }
-
     Real &physical_time = *sph_system.getSystemVariableDataByName<Real>("PhysicalTime");
     size_t number_of_iterations = 0;
     int screen_output_interval = 500;
