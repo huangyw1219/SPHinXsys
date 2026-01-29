@@ -116,6 +116,10 @@ int main(int ac, char *av[])
     ParticleBuffer<ReserveSizeFactor> soil_buffer(0.2);
     soil_block.generateParticlesWithReserve<BaseParticles, Lattice>(soil_buffer);
 
+    SolidBody soil_wall_boundary(sph_system, makeShared<Soil>("SoilWallBoundary"));
+    soil_wall_boundary.defineMaterial<Solid>();
+    soil_wall_boundary.generateParticles<BaseParticles, Lattice>();
+
     FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBody"));
     water_block.defineMaterial<WeaklyCompressibleFluid>(rho0_f, c_f);
     water_block.generateParticles<BaseParticles, Lattice>();
@@ -157,13 +161,13 @@ int main(int ac, char *av[])
     ComplexRelation soil_block_complex(soil_block_inner, soil_block_contact);
 
     InnerRelation water_block_inner(water_block);
-    ContactRelation water_wall_contact(water_block, {&wall_boundary});
-    ContactRelation water_fluid_contact(water_block, {&eroded_soil, &soil_block});
+    ContactRelation water_wall_contact(water_block, {&wall_boundary, &soil_wall_boundary});
+    ContactRelation water_fluid_contact(water_block, {&eroded_soil});
     ComplexRelation water_block_complex(water_block_inner, {&water_fluid_contact, &water_wall_contact});
 
     InnerRelation eroded_inner(eroded_soil);
-    ContactRelation eroded_wall_contact(eroded_soil, {&wall_boundary});
-    ContactRelation eroded_fluid_contact(eroded_soil, {&water_block, &soil_block});
+    ContactRelation eroded_wall_contact(eroded_soil, {&wall_boundary, &soil_wall_boundary});
+    ContactRelation eroded_fluid_contact(eroded_soil, {&water_block});
     ComplexRelation eroded_complex(eroded_inner, {&eroded_fluid_contact, &eroded_wall_contact});
 
     Gravity gravity(Vecd(0.0, -gravity_g));
@@ -173,6 +177,7 @@ int main(int ac, char *av[])
 
     SimpleDynamics<NormalDirectionFromBodyShape> wall_boundary_normal_direction(wall_boundary);
     SimpleDynamics<NormalDirectionFromBodyShape> soil_boundary_normal_direction(soil_block);
+    SimpleDynamics<NormalDirectionFromBodyShape> soil_wall_normal_direction(soil_wall_boundary);
 
     SimpleDynamics<SoilInitialCondition> soil_initial_condition(soil_block);
     SimpleDynamics<WaterInitialCondition> water_initial_condition(water_block, 0.4);
@@ -237,6 +242,7 @@ int main(int ac, char *av[])
     sph_system.initializeSystemConfigurations();
     wall_boundary_normal_direction.exec();
     soil_boundary_normal_direction.exec();
+    soil_wall_normal_direction.exec();
     soil_gravity.exec();
     water_gravity.exec();
     eroded_gravity.exec();
