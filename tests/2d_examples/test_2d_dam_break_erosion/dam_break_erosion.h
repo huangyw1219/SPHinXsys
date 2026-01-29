@@ -26,6 +26,9 @@ Real friction_angle = 25.0 * Pi / 180.0;
 
 Real rho0_f = 1000.0; // water density
 Real c_f = 20.0;      // water sound speed
+Real U_ref = sqrt(gravity_g * 0.4);
+Real Re = 1.0e4;
+Real mu_f = rho0_f * U_ref * 0.4 / Re;
 
 // Herschel-Bulkley (erosion phase) parameters (from paper)
 Real hb_min_shear_rate = 1e-2;
