@@ -175,7 +175,7 @@ int main(int ac, char *av[])
     SimpleDynamics<NormalDirectionFromBodyShape> wall_boundary_normal_direction(wall_boundary);
     SimpleDynamics<NormalDirectionFromBodyShape> soil_boundary_normal_direction(soil_block);
     SimpleDynamics<SoilInitialCondition> soil_initial_condition(soil_block);
-    SimpleDynamics<WaterInitialCondition> water_initial_condition(water_block, 0.4);
+    SimpleDynamics<WaterInitialCondition> water_initial_condition(water_block, water_top);
     InteractionWithUpdate<LinearGradientCorrectionMatrixComplex> soil_correction_matrix(soil_block_inner, soil_block_contact);
     Dynamics1Level<continuum_dynamics::PlasticIntegration1stHalfWithWallRiemann> soil_stress_relaxation(soil_block_inner, soil_block_contact);
     Dynamics1Level<continuum_dynamics::PlasticIntegration2ndHalfWithWallRiemann> soil_density_relaxation(soil_block_inner, soil_block_contact);
