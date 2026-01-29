@@ -125,8 +125,7 @@ class WaterInitialCondition : public LocalDynamics
 
     void update(size_t index_i, Real dt)
     {
-        Real depth = SMAX(water_height_ - pos_[index_i][1], 0.0);
-        p_[index_i] = rho0_f * gravity_g * depth;
+        p_[index_i] = 0.0;
         vel_[index_i] = Vecd::Zero();
     };
 
