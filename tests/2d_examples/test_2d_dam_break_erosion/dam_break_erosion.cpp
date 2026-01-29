@@ -193,8 +193,6 @@ int main(int ac, char *av[])
         water_block_inner, water_fluid_contact, water_wall_contact);
     InteractionWithUpdate<fluid_dynamics::BaseDensitySummationComplex<Inner<>, Contact<>, Contact<>>>
         water_density_by_summation(water_block_inner, water_fluid_contact, water_wall_contact);
-    InteractionWithUpdate<fluid_dynamics::MultiPhaseTransportVelocityCorrectionComplex<AllParticles>>
-        water_transport_correction(water_block_inner, water_fluid_contact, water_wall_contact);
     DampingWithRandomChoice<InteractionSplit<DampingPairwiseWithWall<Vec2d, FixedDampingRate>>>
         water_damping(0.2, DynamicsArgs(water_block_inner, "Velocity", mu_f), DynamicsArgs(water_wall_contact, "Velocity", mu_f));
     InteractionDynamics<fluid_dynamics::BoundingFromWall> water_near_wall_bounding(water_wall_contact);
@@ -207,8 +205,6 @@ int main(int ac, char *av[])
         eroded_inner, eroded_fluid_contact, eroded_wall_contact);
     InteractionWithUpdate<fluid_dynamics::BaseDensitySummationComplex<Inner<>, Contact<>, Contact<>>>
         eroded_density_by_summation(eroded_inner, eroded_fluid_contact, eroded_wall_contact);
-    InteractionWithUpdate<fluid_dynamics::MultiPhaseTransportVelocityCorrectionComplex<AllParticles>>
-        eroded_transport_correction(eroded_inner, eroded_fluid_contact, eroded_wall_contact);
     InteractionDynamics<fluid_dynamics::DistanceFromWall> eroded_distance_to_wall(eroded_wall_contact);
     InteractionDynamics<fluid_dynamics::BoundingFromWall> eroded_near_wall_bounding(eroded_wall_contact);
     InteractionWithUpdate<fluid_dynamics::VelocityGradientWithWall<LinearGradientCorrection>> eroded_vel_grad(
@@ -270,11 +266,9 @@ int main(int ac, char *av[])
             soil_transport_velocity_correction.exec();
 
             water_density_by_summation.exec();
-            water_transport_correction.exec();
             water_damping.exec();
             water_near_wall_bounding.exec();
             eroded_density_by_summation.exec();
-            eroded_transport_correction.exec();
 
             Real dt = SMIN(soil_acoustic_time_step.exec(), water_acoustic_time_step.exec());
             bool has_eroded_particles = eroded_soil.getBaseParticles().TotalRealParticles() > 0;
