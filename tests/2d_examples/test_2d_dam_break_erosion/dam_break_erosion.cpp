@@ -116,6 +116,10 @@ int main(int ac, char *av[])
     ParticleBuffer<ReserveSizeFactor> soil_buffer(0.2);
     soil_block.generateParticlesWithReserve<BaseParticles, Lattice>(soil_buffer);
 
+    SolidBody soil_wall_boundary(sph_system, makeShared<Soil>("SoilWallBoundary"));
+    soil_wall_boundary.defineMaterial<Solid>();
+    soil_wall_boundary.generateParticles<BaseParticles, Lattice>();
+
     FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBody"));
     water_block.defineMaterial<WeaklyCompressibleFluid>(rho0_f, c_f);
     water_block.generateParticles<BaseParticles, Lattice>();
@@ -158,12 +162,12 @@ int main(int ac, char *av[])
     ComplexRelation soil_block_complex(soil_block_inner, soil_block_contact);
 
     InnerRelation water_block_inner(water_block);
-    ContactRelation water_wall_contact(water_block, {&wall_boundary});
+    ContactRelation water_wall_contact(water_block, {&wall_boundary, &soil_wall_boundary});
     ContactRelation water_fluid_contact(water_block, {&eroded_soil});
     ComplexRelation water_block_complex(water_block_inner, {&water_fluid_contact, &water_wall_contact});
 
     InnerRelation eroded_inner(eroded_soil);
-    ContactRelation eroded_wall_contact(eroded_soil, {&wall_boundary});
+    ContactRelation eroded_wall_contact(eroded_soil, {&wall_boundary, &soil_wall_boundary});
     ContactRelation eroded_fluid_contact(eroded_soil, {&water_block});
     ComplexRelation eroded_complex(eroded_inner, {&eroded_fluid_contact, &eroded_wall_contact});
 
@@ -174,6 +178,7 @@ int main(int ac, char *av[])
 
     SimpleDynamics<NormalDirectionFromBodyShape> wall_boundary_normal_direction(wall_boundary);
     SimpleDynamics<NormalDirectionFromBodyShape> soil_boundary_normal_direction(soil_block);
+    SimpleDynamics<NormalDirectionFromBodyShape> soil_wall_normal_direction(soil_wall_boundary);
 
     SimpleDynamics<SoilInitialCondition> soil_initial_condition(soil_block);
     SimpleDynamics<WaterInitialCondition> water_initial_condition(water_block, 0.4);
@@ -238,6 +243,7 @@ int main(int ac, char *av[])
     sph_system.initializeSystemConfigurations();
     wall_boundary_normal_direction.exec();
     soil_boundary_normal_direction.exec();
+    soil_wall_normal_direction.exec();
     soil_gravity.exec();
     water_gravity.exec();
     eroded_gravity.exec();
@@ -308,14 +314,14 @@ int main(int ac, char *av[])
             {
                 std::cout << std::fixed << std::setprecision(9) << "N=" << number_of_iterations << std::setprecision(4)
                           << "\tTime = " << physical_time << std::scientific << "\tdt = " << dt << "\n";
+                size_t current_soil_particles = soil_particles.TotalRealParticles();
+                size_t current_eroded_particles = eroded_particles.TotalRealParticles();
+                std::cout << std::fixed << std::setprecision(0)
+                          << "SoilInit=" << initial_soil_particle_count
+                          << "\tSoilRemain=" << current_soil_particles
+                          << "\tEroded=" << current_eroded_particles
+                          << "\tSum=" << current_soil_particles + current_eroded_particles << "\n";
             }
-            size_t current_soil_particles = soil_particles.TotalRealParticles();
-            size_t current_eroded_particles = eroded_particles.TotalRealParticles();
-            std::cout << std::fixed << std::setprecision(0)
-                      << "SoilInit=" << initial_soil_particle_count
-                      << "\tSoilRemain=" << current_soil_particles
-                      << "\tEroded=" << current_eroded_particles
-                      << "\tSum=" << current_soil_particles + current_eroded_particles << "\n";
             number_of_iterations++;
 
             soil_block.updateCellLinkedList();
