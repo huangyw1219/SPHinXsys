@@ -116,10 +116,6 @@ int main(int ac, char *av[])
     ParticleBuffer<ReserveSizeFactor> soil_buffer(0.2);
     soil_block.generateParticlesWithReserve<BaseParticles, Lattice>(soil_buffer);
 
-    SolidBody soil_wall_boundary(sph_system, makeShared<Soil>("SoilWallBoundary"));
-    soil_wall_boundary.defineMaterial<Solid>();
-    soil_wall_boundary.generateParticles<BaseParticles, Lattice>();
-
     FluidBody water_block(sph_system, makeShared<WaterBlock>("WaterBody"));
     water_block.defineMaterial<WeaklyCompressibleFluid>(rho0_f, c_f);
     water_block.generateParticles<BaseParticles, Lattice>();
@@ -162,12 +158,12 @@ int main(int ac, char *av[])
     ComplexRelation soil_block_complex(soil_block_inner, soil_block_contact);
 
     InnerRelation water_block_inner(water_block);
-    ContactRelation water_wall_contact(water_block, {&wall_boundary, &soil_wall_boundary});
+    ContactRelation water_wall_contact(water_block, {&wall_boundary});
     ContactRelation water_fluid_contact(water_block, {&eroded_soil});
     ComplexRelation water_block_complex(water_block_inner, {&water_fluid_contact, &water_wall_contact});
 
     InnerRelation eroded_inner(eroded_soil);
-    ContactRelation eroded_wall_contact(eroded_soil, {&wall_boundary, &soil_wall_boundary});
+    ContactRelation eroded_wall_contact(eroded_soil, {&wall_boundary});
     ContactRelation eroded_fluid_contact(eroded_soil, {&water_block});
     ComplexRelation eroded_complex(eroded_inner, {&eroded_fluid_contact, &eroded_wall_contact});
 
@@ -178,8 +174,6 @@ int main(int ac, char *av[])
 
     SimpleDynamics<NormalDirectionFromBodyShape> wall_boundary_normal_direction(wall_boundary);
     SimpleDynamics<NormalDirectionFromBodyShape> soil_boundary_normal_direction(soil_block);
-    SimpleDynamics<NormalDirectionFromBodyShape> soil_wall_normal_direction(soil_wall_boundary);
-
     SimpleDynamics<SoilInitialCondition> soil_initial_condition(soil_block);
     SimpleDynamics<WaterInitialCondition> water_initial_condition(water_block, 0.4);
     InteractionWithUpdate<LinearGradientCorrectionMatrixComplex> soil_correction_matrix(soil_block_inner, soil_block_contact);
@@ -197,8 +191,10 @@ int main(int ac, char *av[])
         water_block_inner, water_fluid_contact, water_wall_contact);
     Dynamics1Level<fluid_dynamics::MultiPhaseIntegration2ndHalfWithWallRiemann> water_density_relaxation(
         water_block_inner, water_fluid_contact, water_wall_contact);
-    InteractionWithUpdate<fluid_dynamics::DensitySummationComplexFreeSurface> water_density_by_summation(
-        water_block_inner, water_wall_contact);
+    InteractionWithUpdate<fluid_dynamics::BaseDensitySummationComplex<Inner<>, Contact<>, Contact<>>>
+        water_density_by_summation(water_block_inner, water_fluid_contact, water_wall_contact);
+    InteractionWithUpdate<fluid_dynamics::MultiPhaseTransportVelocityCorrectionComplex<AllParticles>>
+        water_transport_correction(water_block_inner, water_fluid_contact, water_wall_contact);
     DampingWithRandomChoice<InteractionSplit<DampingPairwiseWithWall<Vec2d, FixedDampingRate>>>
         water_damping(0.2, DynamicsArgs(water_block_inner, "Velocity", mu_f), DynamicsArgs(water_wall_contact, "Velocity", mu_f));
     InteractionDynamics<fluid_dynamics::BoundingFromWall> water_near_wall_bounding(water_wall_contact);
@@ -209,8 +205,10 @@ int main(int ac, char *av[])
         eroded_inner, eroded_fluid_contact, eroded_wall_contact);
     Dynamics1Level<fluid_dynamics::MultiPhaseIntegration2ndHalfWithWallRiemann> eroded_density_relaxation(
         eroded_inner, eroded_fluid_contact, eroded_wall_contact);
-    InteractionWithUpdate<fluid_dynamics::DensitySummationComplex> eroded_density_by_summation(
-        eroded_inner, eroded_fluid_contact);
+    InteractionWithUpdate<fluid_dynamics::BaseDensitySummationComplex<Inner<>, Contact<>, Contact<>>>
+        eroded_density_by_summation(eroded_inner, eroded_fluid_contact, eroded_wall_contact);
+    InteractionWithUpdate<fluid_dynamics::MultiPhaseTransportVelocityCorrectionComplex<AllParticles>>
+        eroded_transport_correction(eroded_inner, eroded_fluid_contact, eroded_wall_contact);
     InteractionDynamics<fluid_dynamics::DistanceFromWall> eroded_distance_to_wall(eroded_wall_contact);
     InteractionDynamics<fluid_dynamics::BoundingFromWall> eroded_near_wall_bounding(eroded_wall_contact);
     InteractionWithUpdate<fluid_dynamics::VelocityGradientWithWall<LinearGradientCorrection>> eroded_vel_grad(
@@ -245,7 +243,6 @@ int main(int ac, char *av[])
     sph_system.initializeSystemConfigurations();
     wall_boundary_normal_direction.exec();
     soil_boundary_normal_direction.exec();
-    soil_wall_normal_direction.exec();
     soil_gravity.exec();
     water_gravity.exec();
     eroded_gravity.exec();
@@ -276,8 +273,10 @@ int main(int ac, char *av[])
 
             water_density_by_summation.exec();
             water_damping.exec();
+            water_transport_correction.exec();
             water_near_wall_bounding.exec();
             eroded_density_by_summation.exec();
+            eroded_transport_correction.exec();
 
             Real dt = SMIN(soil_acoustic_time_step.exec(), water_acoustic_time_step.exec());
             bool has_eroded_particles = eroded_soil.getBaseParticles().TotalRealParticles() > 0;
