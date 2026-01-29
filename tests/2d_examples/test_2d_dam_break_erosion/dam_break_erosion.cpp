@@ -252,7 +252,6 @@ int main(int ac, char *av[])
     Real &physical_time = *sph_system.getSystemVariableDataByName<Real>("PhysicalTime");
     size_t number_of_iterations = 0;
     int transport_correction_interval = 10;
-    int transport_correction_boost_steps = 200;
     int screen_output_interval = 500;
     Real End_Time = 2.0;
     Real D_Time = End_Time / 50;
@@ -270,10 +269,7 @@ int main(int ac, char *av[])
             soil_transport_velocity_correction.exec();
 
             water_density_by_summation.exec();
-            int transport_interval = number_of_iterations < static_cast<size_t>(transport_correction_boost_steps)
-                                         ? 1
-                                         : transport_correction_interval;
-            if (number_of_iterations % transport_interval == 0)
+            if (number_of_iterations % transport_correction_interval == 0)
             {
                 water_transport_correction.exec();
             }

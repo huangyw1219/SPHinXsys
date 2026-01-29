@@ -150,6 +150,9 @@ class ErosionIdentification : public LocalDynamics, public DataDelegateContact
     explicit ErosionIdentification(BaseContactRelation &contact_relation, Real threshold)
         : LocalDynamics(contact_relation.getSPHBody()), DataDelegateContact(contact_relation),
           erosion_flag_(particles_->registerStateVariableData<int>("ErosionFlag")),
+          erosion_state_(particles_->getVariableDataByName<int>("ErosionState")),
+          indicator_(particles_->getVariableDataByName<int>("Indicator")),
+          surface_normal_(particles_->getVariableDataByName<Vecd>("SurfaceNormal")),
           threshold_(threshold)
     {
         for (size_t k = 0; k != contact_particles_.size(); ++k)
@@ -161,6 +164,10 @@ class ErosionIdentification : public LocalDynamics, public DataDelegateContact
     void interaction(size_t index_i, Real dt = 0.0)
     {
         erosion_flag_[index_i] = 0;
+        if (indicator_[index_i] == 0 || erosion_state_[index_i] != 0)
+            return;
+        if (surface_normal_[index_i].squaredNorm() < TinyReal)
+            return;
         Vecd avg_vel = Vecd::Zero();
         size_t count = 0;
         for (size_t k = 0; k < contact_configuration_.size(); ++k)
@@ -177,12 +184,18 @@ class ErosionIdentification : public LocalDynamics, public DataDelegateContact
         if (count == 0)
             return;
         avg_vel /= Real(count);
-        if (avg_vel.norm() > threshold_)
+        Vecd normal = surface_normal_[index_i];
+        normal /= normal.norm() + TinyReal;
+        Vecd tangential_vel = avg_vel - avg_vel.dot(normal) * normal;
+        if (tangential_vel.norm() > threshold_)
             erosion_flag_[index_i] = 1;
     };
 
   protected:
     int *erosion_flag_;
+    int *erosion_state_;
+    int *indicator_;
+    Vecd *surface_normal_;
     StdVec<Vecd *> contact_vel_;
     Real threshold_;
 };
