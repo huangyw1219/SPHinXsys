@@ -9,22 +9,6 @@
 
 namespace
 {
-class WaterVelocityFreeze : public LocalDynamics
-{
-  public:
-    explicit WaterVelocityFreeze(SPHBody &water_body)
-        : LocalDynamics(water_body),
-          vel_(particles_->getVariableDataByName<Vecd>("Velocity")) {};
-
-    void update(size_t index_i, Real dt = 0.0)
-    {
-        vel_[index_i] = Vecd::Zero();
-    };
-
-  protected:
-    Vecd *vel_;
-};
-
 void erodeSoilParticles(RealBody &soil_body, FluidBody &eroded_body)
 {
     auto &soil_particles = soil_body.getBaseParticles();
@@ -231,7 +215,6 @@ int main(int ac, char *av[])
     ReduceDynamics<fluid_dynamics::AcousticTimeStep> eroded_acoustic_time_step(eroded_soil, 0.4);
 
     InteractionDynamics<ErosionIdentification> erosion_identification(soil_water_contact, erosion_velocity_threshold);
-    SimpleDynamics<WaterVelocityFreeze> water_velocity_freeze(water_block);
     SimpleDynamics<DepositionIdentification> deposition_identification(eroded_soil, deposition_velocity_threshold);
     SimpleDynamics<UpdateDisplacement> update_displacement(soil_block);
 
@@ -266,7 +249,6 @@ int main(int ac, char *av[])
 
     Real &physical_time = *sph_system.getSystemVariableDataByName<Real>("PhysicalTime");
     size_t number_of_iterations = 0;
-    int initial_velocity_freeze_steps = 200;
     int screen_output_interval = 500;
     Real End_Time = 2.0;
     Real D_Time = End_Time / 50;
@@ -287,11 +269,6 @@ int main(int ac, char *av[])
             water_damping.exec();
             water_near_wall_bounding.exec();
             eroded_density_by_summation.exec();
-
-            if (number_of_iterations < static_cast<size_t>(initial_velocity_freeze_steps))
-            {
-                water_velocity_freeze.exec();
-            }
 
             Real dt = SMIN(soil_acoustic_time_step.exec(), water_acoustic_time_step.exec());
             bool has_eroded_particles = eroded_soil.getBaseParticles().TotalRealParticles() > 0;
