@@ -184,6 +184,7 @@ int main(int ac, char *av[])
 
     InnerRelation water_block_inner(water_block);
     ContactRelation water_wall_contact(water_block, {&wall_boundary});
+    ContactRelation water_soil_contact(water_block, {&soil_block});
     ContactRelation water_fluid_contact(water_block, {&eroded_soil, &soil_block});
     ComplexRelation water_block_complex(water_block_inner, {&water_fluid_contact, &water_wall_contact});
 
