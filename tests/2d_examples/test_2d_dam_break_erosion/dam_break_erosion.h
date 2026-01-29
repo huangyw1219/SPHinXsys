@@ -150,7 +150,8 @@ class ErosionIdentification : public LocalDynamics, public DataDelegateContact
         if (count == 0)
             return;
         avg_vel /= Real(count);
-        if (avg_vel.norm() > threshold_)
+        Real tangential_speed = fabs(avg_vel[0]);
+        if (tangential_speed > threshold_)
             erosion_flag_[index_i] = 1;
     };
 
