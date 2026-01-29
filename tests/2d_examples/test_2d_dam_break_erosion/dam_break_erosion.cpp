@@ -277,8 +277,6 @@ int main(int ac, char *av[])
             water_density_by_summation.exec();
             water_damping.exec();
             water_near_wall_bounding.exec();
-            water_shear_drag.exec(dt);
-            soil_shear_drag.exec(dt);
             eroded_density_by_summation.exec();
 
             Real dt = SMIN(soil_acoustic_time_step.exec(), water_acoustic_time_step.exec());
@@ -287,6 +285,9 @@ int main(int ac, char *av[])
             {
                 dt = SMIN(dt, eroded_acoustic_time_step.exec());
             }
+
+            water_shear_drag.exec(dt);
+            soil_shear_drag.exec(dt);
 
             soil_stress_diffusion.exec();
             soil_stress_relaxation.exec(dt);
