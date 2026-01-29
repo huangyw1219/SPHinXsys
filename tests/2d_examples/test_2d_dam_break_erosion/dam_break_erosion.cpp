@@ -9,6 +9,32 @@
 
 namespace
 {
+class WaterSoilVerticalDamping : public LocalDynamics, public DataDelegateContact
+{
+  public:
+    explicit WaterSoilVerticalDamping(BaseContactRelation &contact_relation, Real damping_ratio)
+        : LocalDynamics(contact_relation.getSPHBody()), DataDelegateContact(contact_relation),
+          vel_(particles_->getVariableDataByName<Vecd>("Velocity")),
+          damping_ratio_(damping_ratio) {};
+
+    void interaction(size_t index_i, Real dt = 0.0)
+    {
+        for (size_t k = 0; k < contact_configuration_.size(); ++k)
+        {
+            Neighborhood &contact_neighborhood = (*contact_configuration_[k])[index_i];
+            if (contact_neighborhood.current_size_ > 0)
+            {
+                vel_[index_i][1] *= damping_ratio_;
+                break;
+            }
+        }
+    };
+
+  protected:
+    Vecd *vel_;
+    Real damping_ratio_;
+};
+
 void erodeSoilParticles(RealBody &soil_body, FluidBody &eroded_body)
 {
     auto &soil_particles = soil_body.getBaseParticles();
@@ -159,6 +185,7 @@ int main(int ac, char *av[])
 
     InnerRelation water_block_inner(water_block);
     ContactRelation water_wall_contact(water_block, {&wall_boundary});
+    ContactRelation water_soil_contact(water_block, {&soil_block});
     ContactRelation water_fluid_contact(water_block, {&eroded_soil, &soil_block});
     ComplexRelation water_block_complex(water_block_inner, {&water_fluid_contact, &water_wall_contact});
 
@@ -217,6 +244,7 @@ int main(int ac, char *av[])
     ReduceDynamics<fluid_dynamics::AcousticTimeStep> eroded_acoustic_time_step(eroded_soil, 0.4);
 
     InteractionDynamics<ErosionIdentification> erosion_identification(soil_water_contact, erosion_velocity_threshold);
+    InteractionDynamics<WaterSoilVerticalDamping> water_soil_vertical_damping(water_soil_contact, 0.2);
     SimpleDynamics<DepositionIdentification> deposition_identification(eroded_soil, deposition_velocity_threshold);
     SimpleDynamics<UpdateDisplacement> update_displacement(soil_block);
 
@@ -252,6 +280,7 @@ int main(int ac, char *av[])
     Real &physical_time = *sph_system.getSystemVariableDataByName<Real>("PhysicalTime");
     size_t number_of_iterations = 0;
     int transport_correction_interval = 10;
+    int vertical_damping_steps = 200;
     int screen_output_interval = 500;
     Real End_Time = 2.0;
     Real D_Time = End_Time / 50;
@@ -276,6 +305,10 @@ int main(int ac, char *av[])
             water_damping.exec();
             water_near_wall_bounding.exec();
             eroded_density_by_summation.exec();
+            if (number_of_iterations < static_cast<size_t>(vertical_damping_steps))
+            {
+                water_soil_vertical_damping.exec();
+            }
 
             Real dt = SMIN(soil_acoustic_time_step.exec(), water_acoustic_time_step.exec());
             bool has_eroded_particles = eroded_soil.getBaseParticles().TotalRealParticles() > 0;
