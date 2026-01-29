@@ -120,18 +120,22 @@ class WaterInitialCondition : public LocalDynamics
         : LocalDynamics(water_body),
           water_height_(water_height),
           pos_(particles_->getVariableDataByName<Vecd>("Position")),
+          rho_(particles_->getVariableDataByName<Real>("Density")),
           p_(particles_->registerStateVariableData<Real>("Pressure")),
           vel_(particles_->registerStateVariableData<Vecd>("Velocity")) {};
 
     void update(size_t index_i, Real dt)
     {
-        p_[index_i] = 0.0;
+        Real depth = SMAX(water_height_ - pos_[index_i][1], 0.0);
+        rho_[index_i] = rho0_f;
+        p_[index_i] = rho0_f * gravity_g * depth;
         vel_[index_i] = Vecd::Zero();
     };
 
   protected:
     Real water_height_;
     Vecd *pos_;
+    Real *rho_;
     Real *p_;
     Vecd *vel_;
 };
