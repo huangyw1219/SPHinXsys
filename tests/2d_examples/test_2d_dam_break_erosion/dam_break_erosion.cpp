@@ -218,13 +218,6 @@ int main(int ac, char *av[])
     SimpleDynamics<continuum_dynamics::VerticalStress> vertical_stress(soil_block);
     SimpleDynamics<continuum_dynamics::AccDeviatoricPlasticStrain> accumulated_deviatoric_plastic_strain(soil_block);
 
-    NearShapeSurface near_surface_soil(water_block, makeShared<Soil>("SoilBoundary"));
-    fluid_dynamics::StaticConfinement confinement_condition_soil(near_surface_soil);
-    water_density_by_summation.post_processes_.push_back(&confinement_condition_soil.density_summation_);
-    water_pressure_relaxation.post_processes_.push_back(&confinement_condition_soil.pressure_relaxation_);
-    water_density_relaxation.post_processes_.push_back(&confinement_condition_soil.density_relaxation_);
-    water_density_relaxation.post_processes_.push_back(&confinement_condition_soil.surface_bounding_);
-
     BodyStatesRecordingToVtp body_states_recording(sph_system);
     body_states_recording.addToWrite<Real>(soil_block, "Pressure");
     body_states_recording.addToWrite<Real>(soil_block, "Density");
@@ -255,6 +248,8 @@ int main(int ac, char *av[])
     int screen_output_interval = 500;
     Real End_Time = 2.0;
     Real D_Time = End_Time / 50;
+    Real ramp_time = 0.05;
+    bool ramp_gravity_active = true;
 
     body_states_recording.writeToFile();
 
@@ -263,6 +258,14 @@ int main(int ac, char *av[])
         Real integration_time = 0.0;
         while (integration_time < D_Time)
         {
+            if (ramp_gravity_active && physical_time >= ramp_time)
+            {
+                soil_gravity.exec();
+                water_gravity.exec();
+                eroded_gravity.exec();
+                ramp_gravity_active = false;
+            }
+
             soil_density_by_summation.exec();
             soil_surface_indicator.exec();
             soil_free_surface_normal.exec();
