@@ -13,8 +13,6 @@ Real DH = 0.52;                      /**< Tank height. */
 Real particle_spacing_ref = 0.0035;  /**< Initial reference particle spacing. */
 Real BW = particle_spacing_ref * 4;  /**< Extending width for boundary conditions. */
 BoundingBoxd system_domain_bounds(Vec2d(-BW, -BW), Vec2d(DL + BW, DH + BW));
-Real water_bottom = 0.3 + 0.5 * particle_spacing_ref;
-Real water_top = 0.4 + 0.5 * particle_spacing_ref;
 //----------------------------------------------------------------------
 //	Material properties of the soil (DP model) and water.
 //----------------------------------------------------------------------
@@ -57,11 +55,11 @@ std::vector<Vecd> soil_shape{
     Vecd(0.0, 0.0)};
 
 std::vector<Vecd> water_shape{
-    Vecd(0.0, water_bottom),
-    Vecd(0.0, water_top),
-    Vecd(1.0, water_top),
-    Vecd(1.0, water_bottom),
-    Vecd(0.0, water_bottom)};
+    Vecd(0.0, 0.3),
+    Vecd(0.0, 0.4),
+    Vecd(1.0, 0.4),
+    Vecd(1.0, 0.3),
+    Vecd(0.0, 0.3)};
 
 class Soil : public MultiPolygonShape
 {

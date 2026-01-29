@@ -175,7 +175,7 @@ int main(int ac, char *av[])
     SimpleDynamics<NormalDirectionFromBodyShape> wall_boundary_normal_direction(wall_boundary);
     SimpleDynamics<NormalDirectionFromBodyShape> soil_boundary_normal_direction(soil_block);
     SimpleDynamics<SoilInitialCondition> soil_initial_condition(soil_block);
-    SimpleDynamics<WaterInitialCondition> water_initial_condition(water_block, water_top);
+    SimpleDynamics<WaterInitialCondition> water_initial_condition(water_block, 0.4);
     InteractionWithUpdate<LinearGradientCorrectionMatrixComplex> soil_correction_matrix(soil_block_inner, soil_block_contact);
     Dynamics1Level<continuum_dynamics::PlasticIntegration1stHalfWithWallRiemann> soil_stress_relaxation(soil_block_inner, soil_block_contact);
     Dynamics1Level<continuum_dynamics::PlasticIntegration2ndHalfWithWallRiemann> soil_density_relaxation(soil_block_inner, soil_block_contact);
@@ -246,6 +246,11 @@ int main(int ac, char *av[])
     water_correction_matrix.exec();
     eroded_correction_matrix.exec();
     update_displacement.exec();
+
+    Real init_dt = SMIN(soil_acoustic_time_step.exec(), water_acoustic_time_step.exec());
+    water_density_by_summation.exec();
+    water_pressure_relaxation.exec(init_dt);
+    water_density_relaxation.exec(init_dt);
 
     Real &physical_time = *sph_system.getSystemVariableDataByName<Real>("PhysicalTime");
     size_t number_of_iterations = 0;
