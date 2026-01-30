@@ -234,8 +234,6 @@ int main(int ac, char *av[])
         water_block_inner, water_fluid_contact, water_wall_contact);
     InteractionWithUpdate<fluid_dynamics::BaseDensitySummationComplex<Inner<>, Contact<>, Contact<>>>
         water_density_by_summation(water_block_inner, water_fluid_contact, water_wall_contact);
-    InteractionWithUpdate<fluid_dynamics::MultiPhaseTransportVelocityCorrectionComplex<AllParticles>>
-        water_transport_correction(water_block_inner, water_fluid_contact, water_wall_contact);
     DampingWithRandomChoice<InteractionSplit<DampingPairwiseWithWall<Vec2d, FixedDampingRate>>>
         water_damping(0.2, DynamicsArgs(water_block_inner, "Velocity", mu_f), DynamicsArgs(water_wall_contact, "Velocity", mu_f));
     InteractionDynamics<fluid_dynamics::BoundingFromWall> water_near_wall_bounding(water_wall_contact);
@@ -293,7 +291,6 @@ int main(int ac, char *av[])
 
     Real &physical_time = *sph_system.getSystemVariableDataByName<Real>("PhysicalTime");
     size_t number_of_iterations = 0;
-    int transport_correction_interval = 10;
     int screen_output_interval = 500;
     Real End_Time = 2.0;
     Real D_Time = End_Time / 50;
@@ -311,10 +308,6 @@ int main(int ac, char *av[])
             soil_transport_velocity_correction.exec();
 
             water_density_by_summation.exec();
-            if (number_of_iterations % transport_correction_interval == 0)
-            {
-                water_transport_correction.exec();
-            }
             water_damping.exec();
             water_near_wall_bounding.exec();
             eroded_density_by_summation.exec();
